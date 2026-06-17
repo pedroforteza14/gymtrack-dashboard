@@ -63,9 +63,9 @@ router.get("/low-stock", async (_req: AuthRequest, res: Response): Promise<void>
   });
   // Workaround: compare in JS since Prisma doesn't support column comparison in where
   const low = await prisma.$queryRaw<{ id: string; name: string; sku: string; stock: number; stockMinAlert: number }[]>`
-    SELECT id, name, sku, stock, stockMinAlert
-    FROM Product
-    WHERE active = true AND stock <= stockMinAlert
+    SELECT id, name, sku, stock, "stockMinAlert"
+    FROM "Product"
+    WHERE active = true AND stock <= "stockMinAlert"
     ORDER BY stock ASC
   `;
   res.json(low);
