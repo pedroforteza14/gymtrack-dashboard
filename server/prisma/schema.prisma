@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MARKETING
+}
+
+model User {
+  id         String      @id @default(cuid())
+  email      String      @unique
+  password   String
+  name       String
+  role       UserRole    @default(OWNER)
+  adAccounts AdAccount[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model AdAccount {
+  id            String     @id @default(cuid())
+  metaAccountId String     @unique
+  name          String
+  accessToken   String
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  campaigns     Campaign[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Campaign {
+  id             String      @id @default(cuid())
+  metaCampaignId String      @unique
+  name           String
+  status         String
+  objective      String?
+  adAccountId    String
+  adAccount      AdAccount   @relation(fields: [adAccountId], references: [id])
+  metrics        AdMetrics[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model AdMetrics {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  date        DateTime
+  spend       Decimal  @db.Decimal(10, 2)
+  impressions Int
+  clicks      Int
+  ctr         Decimal  @db.Decimal(6, 4)
+  cpm         Decimal  @db.Decimal(10, 2)
+  conversions Int      @default(0)
+  roas        Decimal  @db.Decimal(10, 4) @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([campaignId, date])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  notes     String?
+  sales     Sale[]
+  quotes    Quote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  name           String
+  sku            String          @unique
+  description    String?
+  categoryId     String?
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  costPrice      Decimal         @db.Decimal(10, 2)
+  sellPrice      Decimal         @db.Decimal(10, 2)
+  stock          Int             @default(0)
+  stockMinAlert  Int             @default(5)
+  active         Boolean         @default(true)
+  saleItems      SaleItem[]
+  quoteItems     QuoteItem[]
+  stockMovements StockMovement[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Sale {
+  id           String     @id @default(cuid())
+  saleNumber   String     @unique
+  clientId     String?
+  client       Client?    @relation(fields: [clientId], references: [id])
+  notes        String?
+  items        SaleItem[]
+  totalCost    Decimal    @db.Decimal(10, 2)
+  totalRevenue Decimal    @db.Decimal(10, 2)
+  totalProfit  Decimal    @db.Decimal(10, 2)
+  createdAt    DateTime   @default(now())
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitCost  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+  profit    Decimal @db.Decimal(10, 2)
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  quoteNumber String      @unique
+  clientId    String?
+  client      Client?     @relation(fields: [clientId], references: [id])
+  items       QuoteItem[]
+  notes       String?
+  validDays   Int         @default(15)
+  status      QuoteStatus @default(DRAFT)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model QuoteItem {
+  id        String  @id @default(cuid())
+  quoteId   String
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+}
+
+model StockMovement {
+  id        String            @id @default(cuid())
+  productId String
+  product   Product           @relation(fields: [productId], references: [id])
+  type      StockMovementType
+  quantity  Int
+  reason    String?
+  saleId    String?
+  createdAt DateTime          @default(now())
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  SALE
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
