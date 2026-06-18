@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Megaphone, TrendingUp, DollarSign, Target, Filter } from "lucide-react";
+import { Megaphone, DollarSign, Target, Filter } from "lucide-react";
 
 interface Campaign {
   id: string;

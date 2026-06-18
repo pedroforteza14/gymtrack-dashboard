@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Search, Filter, User } from "lucide-react";
+import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User } from "lucide-react";
 import { api } from "../lib/api";
 import { currency, pct, dateLong } from "../lib/format";
 
