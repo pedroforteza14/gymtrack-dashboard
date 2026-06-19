@@ -5,7 +5,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, X, Search, AlertTriangle, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
-import { currency, pct } from "../lib/format";
+import { currency } from "../lib/format";
 
 interface Product {
   id: string; name: string; sku: string; description?: string;
@@ -22,17 +22,11 @@ const schema = z.object({
   sku: z.string().min(1, "Requerido"),
   description: z.string().optional(),
   categoryId: z.string().optional(),
-  costPrice: numField(),
   sellPrice: numField(),
   stock: numOptional(),
   stockMinAlert: numOptional(),
 });
 type FormData = z.infer<typeof schema>;
-
-function margin(cost: number, sell: number) {
-  if (!sell) return 0;
-  return ((sell - cost) / sell) * 100;
-}
 
 export default function Products() {
   const qc = useQueryClient();
@@ -71,7 +65,7 @@ export default function Products() {
   function openEdit(p: Product) {
     setEditing(p);
     reset({ name: p.name, sku: p.sku, description: p.description ?? "", categoryId: p.categoryId ?? "",
-      costPrice: Number(p.costPrice), sellPrice: Number(p.sellPrice), stock: p.stock, stockMinAlert: p.stockMinAlert });
+      sellPrice: Number(p.sellPrice), stock: p.stock, stockMinAlert: p.stockMinAlert });
     setModalOpen(true);
   }
   function closeModal() { setModalOpen(false); setEditing(null); reset({}); }
@@ -114,21 +108,18 @@ export default function Products() {
             <tr className="text-left">
               <th className="px-6 py-3 text-gray-400 font-medium">Producto</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Categoría</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Precio</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Margen</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Stock</th>
               <th className="px-4 py-3 text-gray-400 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
             ) : (
               filtered.map((p) => {
-                const m = margin(Number(p.costPrice), Number(p.sellPrice));
                 const lowStock = p.stock <= p.stockMinAlert;
                 return (
                   <tr key={p.id} className="hover:bg-gray-800/30 transition-colors">
@@ -139,13 +130,7 @@ export default function Products() {
                     <td className="px-4 py-4">
                       {p.category ? <span className="badge-blue">{p.category.name}</span> : <span className="text-gray-600">—</span>}
                     </td>
-                    <td className="px-4 py-4 text-right text-gray-300">{currency(Number(p.costPrice))}</td>
                     <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(p.sellPrice))}</td>
-                    <td className="px-4 py-4 text-right">
-                      <span className={m >= 30 ? "badge-green" : m >= 15 ? "badge-yellow" : "badge-red"}>
-                        {pct(m)}
-                      </span>
-                    </td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         {lowStock && <AlertTriangle size={13} className="text-yellow-400" />}
@@ -188,12 +173,12 @@ export default function Products() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="label">Nombre del producto</label>
-                  <input {...register("name")} className="input" placeholder="Cinta de Correr Pro" />
+                  <input {...register("name")} className="input" placeholder="Banco Multi Angular Premium" />
                   {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name.message}</p>}
                 </div>
                 <div>
                   <label className="label">SKU</label>
-                  <input {...register("sku")} className="input" placeholder="CARD-001" />
+                  <input {...register("sku")} className="input" placeholder="BAN-001" />
                   {errors.sku && <p className="text-red-400 text-xs mt-1">{errors.sku.message}</p>}
                 </div>
                 <div>
@@ -202,11 +187,6 @@ export default function Products() {
                     <option value="">Sin categoría</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="label">Costo</label>
-                  <input {...register("costPrice")} type="number" step="0.01" className="input" placeholder="0.00" />
-                  {errors.costPrice && <p className="text-red-400 text-xs mt-1">{errors.costPrice.message}</p>}
                 </div>
                 <div>
                   <label className="label">Precio de venta</label>
