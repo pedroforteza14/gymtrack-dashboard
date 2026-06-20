@@ -11,7 +11,7 @@ const productSchema = z.object({
   sku: z.string().min(1),
   description: z.string().optional(),
   categoryId: z.string().optional(),
-  costPrice: z.number().min(0),
+  costPrice: z.number().min(0).default(0),
   sellPrice: z.number().min(0),
   stock: z.number().int().min(0).optional(),
   stockMinAlert: z.number().int().min(0).optional(),
