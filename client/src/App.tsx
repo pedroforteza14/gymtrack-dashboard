@@ -12,6 +12,8 @@ import AgencyDashboard from "./pages/AgencyDashboard";
 import ClientDashboard from "./pages/ClientDashboard";
 import AdAccounts from "./pages/AdAccounts";
 import AllCampaigns from "./pages/AllCampaigns";
+import Analytics from "./pages/Analytics";
+import MarketingAnalytics from "./pages/MarketingAnalytics";
 import { getRole, isAuthenticated } from "./lib/auth";
 
 const queryClient = new QueryClient({
@@ -69,6 +71,11 @@ export default function App() {
               <Layout><Quotes /></Layout>
             </RoleRoute>
           } />
+          <Route path="/analytics" element={
+            <RoleRoute role="OWNER">
+              <Layout><Analytics /></Layout>
+            </RoleRoute>
+          } />
 
           {/* ── MARKETING routes ─────────────────────────────── */}
           <Route path="/ads" element={
@@ -89,6 +96,11 @@ export default function App() {
           <Route path="/ads/client/:accountId" element={
             <RoleRoute role="MARKETING">
               <Layout><ClientDashboard /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/ads/analytics" element={
+            <RoleRoute role="MARKETING">
+              <Layout><MarketingAnalytics /></Layout>
             </RoleRoute>
           } />
 

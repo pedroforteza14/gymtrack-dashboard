@@ -12,6 +12,7 @@ import clientsRouter from "./routes/clients";
 import quotesRouter from "./routes/quotes";
 import adAccountsRouter from "./routes/adAccounts";
 import campaignsRouter from "./routes/campaigns";
+import analyticsRouter from "./routes/analytics";
 import { syncAllMetrics } from "./lib/syncMetrics";
 
 const app = express();
@@ -33,6 +34,7 @@ app.use("/api/clients", clientsRouter);
 app.use("/api/quotes", quotesRouter);
 app.use("/api/ad-accounts", adAccountsRouter);
 app.use("/api/campaigns", campaignsRouter);
+app.use("/api/analytics", analyticsRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
