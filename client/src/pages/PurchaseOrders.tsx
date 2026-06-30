@@ -38,7 +38,7 @@ export default function PurchaseOrders() {
     queryFn: () => api.get("/products").then((r) => r.data),
   });
 
-  const { register, handleSubmit, control, reset, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, reset, watch } = useForm<FormData>({
     defaultValues: { items: [{ productId: "", quantity: 1, unitCost: 0 }] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
