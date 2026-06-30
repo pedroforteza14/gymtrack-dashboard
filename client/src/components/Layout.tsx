@@ -1,7 +1,7 @@
 import { Link, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, BarChart3, LogOut, Dumbbell,
-  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart,
+  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ShoppingBag, CalendarDays,
 } from "lucide-react";
 import { logout, isAuthenticated, getRole } from "../lib/auth";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +14,7 @@ const ownerNav = [
   { to: "/stock", icon: BarChart3, label: "Stock" },
   { to: "/clients", icon: Users, label: "Clientes" },
   { to: "/quotes", icon: FileText, label: "Presupuestos" },
+  { to: "/purchase-orders", icon: ShoppingBag, label: "Órdenes de compra" },
   { to: "/analytics", icon: PieChart, label: "Analytics" },
 ];
 
@@ -21,7 +22,9 @@ const marketingNav = [
   { to: "/ads", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/ads/accounts", icon: MonitorPlay, label: "Cuentas Meta" },
   { to: "/ads/campaigns", icon: Megaphone, label: "Campañas" },
+  { to: "/ads/calendar", icon: CalendarDays, label: "Calendario" },
   { to: "/ads/analytics", icon: PieChart, label: "Analytics" },
+  { to: "/ads/google", icon: BarChart3, label: "Google Ads" },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {

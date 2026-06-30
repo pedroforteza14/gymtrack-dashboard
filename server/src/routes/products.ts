@@ -45,12 +45,37 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = productSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
+  if (!existing) { res.status(404).json({ error: "Producto no encontrado" }); return; }
+
   const product = await prisma.product.update({
     where: { id: req.params.id },
     data: parsed.data as any,
     include: { category: true },
   });
+
+  // Track price change
+  if (parsed.data.sellPrice !== undefined && Number(parsed.data.sellPrice) !== Number(existing.sellPrice)) {
+    await prisma.priceHistory.create({
+      data: {
+        productId: product.id,
+        oldPrice: existing.sellPrice,
+        newPrice: parsed.data.sellPrice,
+      },
+    });
+  }
+
   res.json(product);
+});
+
+router.get("/:id/price-history", async (req: AuthRequest, res: Response): Promise<void> => {
+  const history = await prisma.priceHistory.findMany({
+    where: { productId: req.params.id },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+  res.json(history);
 });
 
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {

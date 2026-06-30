@@ -16,6 +16,9 @@ const createSaleSchema = z.object({
   items: z.array(saleItemSchema).min(1),
   notes: z.string().optional(),
   clientId: z.string().optional(),
+  paymentMethod: z.enum(["CASH", "TRANSFER", "INSTALLMENTS", "OTHER"]).optional(),
+  paymentStatus: z.enum(["PAID", "PENDING", "PARTIAL"]).default("PAID"),
+  pendingAmount: z.number().min(0).optional(),
 });
 
 async function generateSaleNumber(): Promise<string> {
@@ -75,7 +78,7 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createSaleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
-  const { items, notes, clientId } = parsed.data;
+  const { items, notes, clientId, paymentMethod, paymentStatus, pendingAmount } = parsed.data;
 
   // Fetch products and validate stock
   const productIds = items.map((i) => i.productId);
@@ -125,6 +128,9 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
         totalCost,
         totalRevenue,
         totalProfit,
+        paymentMethod,
+        paymentStatus,
+        ...(pendingAmount !== undefined ? { pendingAmount } : {}),
         ...(clientId ? { clientId } : {}),
         items: { create: saleItemsData },
       },

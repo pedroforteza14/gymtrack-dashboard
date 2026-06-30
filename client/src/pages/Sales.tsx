@@ -1,17 +1,49 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User } from "lucide-react";
+import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User, Download } from "lucide-react";
 import { api } from "../lib/api";
 import { currency, pct, dateLong } from "../lib/format";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Client { id: string; name: string; }
 interface Product { id: string; name: string; sku: string; costPrice: number; sellPrice: number; stock: number; }
 interface SaleItem { productId: string; quantity: number; unitPrice: number; }
 interface Sale {
   id: string; saleNumber: string; notes?: string;
+  paymentMethod?: string; paymentStatus: string; pendingAmount?: number;
   totalCost: number; totalRevenue: number; totalProfit: number; createdAt: string;
   client?: { id: string; name: string } | null;
   items: { id: string; quantity: number; unitPrice: number; unitCost: number; subtotal: number; profit: number; product: { name: string; sku: string } }[];
+}
+
+const PAYMENT_LABELS: Record<string, string> = { CASH: "Efectivo", TRANSFER: "Transferencia", INSTALLMENTS: "Cuotas", OTHER: "Otro" };
+const STATUS_COLORS: Record<string, string> = { PAID: "bg-green-400/10 text-green-400", PENDING: "bg-red-400/10 text-red-400", PARTIAL: "bg-yellow-400/10 text-yellow-400" };
+const STATUS_LABELS: Record<string, string> = { PAID: "Pagado", PENDING: "Pendiente", PARTIAL: "Parcial" };
+
+function exportSalesPDF(sales: Sale[]) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Reporte de Ventas", 14, 15);
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleDateString("es-AR")}`, 14, 22);
+  autoTable(doc, {
+    startY: 28,
+    head: [["#", "Cliente", "Productos", "Pago", "Estado", "Ingresos", "Ganancia", "Fecha"]],
+    body: sales.map((s) => [
+      s.saleNumber,
+      s.client?.name ?? "—",
+      s.items.map((i) => `${i.product.name} x${i.quantity}`).join(", "),
+      s.paymentMethod ? PAYMENT_LABELS[s.paymentMethod] : "—",
+      STATUS_LABELS[s.paymentStatus] ?? s.paymentStatus,
+      `$${Number(s.totalRevenue).toLocaleString("es-AR")}`,
+      `$${Number(s.totalProfit).toLocaleString("es-AR")}`,
+      new Date(s.createdAt).toLocaleDateString("es-AR"),
+    ]),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [37, 99, 235] },
+  });
+  doc.save(`ventas-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export default function Sales() {
@@ -27,10 +59,13 @@ export default function Sales() {
   const [filtersOpen,  setFiltersOpen]  = useState(false);
 
   // Form nueva venta
-  const [items,     setItems]     = useState<SaleItem[]>([]);
-  const [notes,     setNotes]     = useState("");
-  const [clientId,  setClientId]  = useState("");
-  const [saleError, setSaleError] = useState("");
+  const [items,          setItems]          = useState<SaleItem[]>([]);
+  const [notes,          setNotes]          = useState("");
+  const [clientId,       setClientId]       = useState("");
+  const [paymentMethod,  setPaymentMethod]  = useState("");
+  const [paymentStatus,  setPaymentStatus]  = useState("PAID");
+  const [pendingAmount,  setPendingAmount]  = useState("");
+  const [saleError,      setSaleError]      = useState("");
 
   // Query key incluye filtros
   const queryKey = ["sales", page, filterClient, filterFrom, filterTo];
@@ -62,6 +97,9 @@ export default function Sales() {
         items,
         notes: notes || undefined,
         clientId: clientId || undefined,
+        paymentMethod: paymentMethod || undefined,
+        paymentStatus,
+        pendingAmount: pendingAmount ? Number(pendingAmount) : undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sales"] });
@@ -105,7 +143,8 @@ export default function Sales() {
   function removeItem(idx: number) { setItems(items.filter((_, i) => i !== idx)); }
 
   function closeModal() {
-    setModal(false); setItems([]); setNotes(""); setClientId(""); setSaleError("");
+    setModal(false); setItems([]); setNotes(""); setClientId("");
+    setPaymentMethod(""); setPaymentStatus("PAID"); setPendingAmount(""); setSaleError("");
   }
 
   function clearFilters() {
@@ -150,6 +189,9 @@ export default function Sales() {
                 {[filterClient, filterFrom, filterTo].filter(Boolean).length}
               </span>
             )}
+          </button>
+          <button onClick={() => exportSalesPDF(sales)} className="btn-secondary" disabled={sales.length === 0}>
+            <Download size={15} /> PDF
           </button>
           <button onClick={() => setModal(true)} className="btn-primary">
             <Plus size={16} /> Nueva venta
@@ -215,6 +257,7 @@ export default function Sales() {
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Ingresos</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Ganancia</th>
+              <th className="px-4 py-3 text-gray-400 font-medium">Pago</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Margen</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Fecha</th>
               <th className="px-4 py-3"></th>
@@ -222,10 +265,10 @@ export default function Sales() {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={9} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={10} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
             ) : sales.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                   {hasFilters ? "Sin ventas con los filtros aplicados" : "Sin ventas registradas"}
                 </td>
               </tr>
@@ -255,6 +298,12 @@ export default function Sales() {
                     <td className="px-4 py-4 text-right text-gray-400">{currency(Number(sale.totalCost))}</td>
                     <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(sale.totalRevenue))}</td>
                     <td className="px-4 py-4 text-right text-green-400">{currency(Number(sale.totalProfit))}</td>
+                    <td className="px-4 py-4">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[sale.paymentStatus] ?? ""}`}>
+                        {STATUS_LABELS[sale.paymentStatus] ?? sale.paymentStatus}
+                      </span>
+                      {sale.paymentMethod && <p className="text-xs text-gray-500 mt-0.5">{PAYMENT_LABELS[sale.paymentMethod]}</p>}
+                    </td>
                     <td className="px-4 py-4 text-right">
                       <span className={m >= 30 ? "badge-green" : m >= 15 ? "badge-yellow" : "badge-red"}>{pct(m)}</span>
                     </td>
@@ -385,6 +434,34 @@ export default function Sales() {
               <button onClick={addItem} className="btn-secondary w-full justify-center text-sm">
                 <Plus size={14} /> Agregar producto
               </button>
+
+              {/* Pago */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Método de pago</label>
+                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="input">
+                    <option value="">No especificado</option>
+                    <option value="CASH">Efectivo</option>
+                    <option value="TRANSFER">Transferencia</option>
+                    <option value="INSTALLMENTS">Cuotas</option>
+                    <option value="OTHER">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Estado del pago</label>
+                  <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)} className="input">
+                    <option value="PAID">Pagado</option>
+                    <option value="PENDING">Pendiente</option>
+                    <option value="PARTIAL">Parcial</option>
+                  </select>
+                </div>
+                {paymentStatus !== "PAID" && (
+                  <div className="col-span-2">
+                    <label className="label">Monto pendiente</label>
+                    <input type="number" step="0.01" value={pendingAmount} onChange={(e) => setPendingAmount(e.target.value)} className="input" placeholder="0.00" />
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label className="label">Notas (opcional)</label>

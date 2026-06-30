@@ -98,25 +98,30 @@ model Product {
   stock          Int             @default(0)
   stockMinAlert  Int             @default(5)
   active         Boolean         @default(true)
-  saleItems      SaleItem[]
-  quoteItems     QuoteItem[]
-  stockMovements StockMovement[]
+  saleItems          SaleItem[]
+  quoteItems         QuoteItem[]
+  stockMovements     StockMovement[]
+  priceHistory       PriceHistory[]
+  purchaseOrderItems PurchaseOrderItem[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
 
 model Sale {
-  id           String     @id @default(cuid())
-  saleNumber   String     @unique
-  clientId     String?
-  client       Client?    @relation(fields: [clientId], references: [id])
-  notes        String?
-  meliOrderId  String?    @unique
-  items        SaleItem[]
-  totalCost    Decimal    @db.Decimal(10, 2)
-  totalRevenue Decimal    @db.Decimal(10, 2)
-  totalProfit  Decimal    @db.Decimal(10, 2)
-  createdAt    DateTime   @default(now())
+  id             String     @id @default(cuid())
+  saleNumber     String     @unique
+  clientId       String?
+  client         Client?    @relation(fields: [clientId], references: [id])
+  notes          String?
+  meliOrderId    String?    @unique
+  paymentMethod  String?
+  paymentStatus  String     @default("PAID")
+  pendingAmount  Decimal?   @db.Decimal(10, 2)
+  items          SaleItem[]
+  totalCost      Decimal    @db.Decimal(10, 2)
+  totalRevenue   Decimal    @db.Decimal(10, 2)
+  totalProfit    Decimal    @db.Decimal(10, 2)
+  createdAt      DateTime   @default(now())
 }
 
 model MeliToken {
@@ -191,4 +196,57 @@ enum QuoteStatus {
   ACCEPTED
   REJECTED
   EXPIRED
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  oldPrice  Decimal  @db.Decimal(10, 2)
+  newPrice  Decimal  @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  orderNumber String              @unique
+  supplier    String
+  status      PurchaseOrderStatus @default(PENDING)
+  notes       String?
+  items       PurchaseOrderItem[]
+  totalCost   Decimal             @db.Decimal(10, 2)
+  expectedAt  DateTime?
+  receivedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantity        Int
+  unitCost        Decimal       @db.Decimal(10, 2)
+  subtotal        Decimal       @db.Decimal(10, 2)
+  received        Int           @default(0)
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+model GoogleAdsToken {
+  id           String   @id @default(cuid())
+  customerId   String   @unique
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

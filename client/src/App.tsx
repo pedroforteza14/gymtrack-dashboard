@@ -14,6 +14,9 @@ import AdAccounts from "./pages/AdAccounts";
 import AllCampaigns from "./pages/AllCampaigns";
 import Analytics from "./pages/Analytics";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
+import PurchaseOrders from "./pages/PurchaseOrders";
+import CampaignCalendar from "./pages/CampaignCalendar";
+import GoogleAds from "./pages/GoogleAds";
 import { getRole, isAuthenticated } from "./lib/auth";
 
 const queryClient = new QueryClient({
@@ -76,6 +79,11 @@ export default function App() {
               <Layout><Analytics /></Layout>
             </RoleRoute>
           } />
+          <Route path="/purchase-orders" element={
+            <RoleRoute role="OWNER">
+              <Layout><PurchaseOrders /></Layout>
+            </RoleRoute>
+          } />
 
           {/* ── MARKETING routes ─────────────────────────────── */}
           <Route path="/ads" element={
@@ -101,6 +109,16 @@ export default function App() {
           <Route path="/ads/analytics" element={
             <RoleRoute role="MARKETING">
               <Layout><MarketingAnalytics /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/ads/calendar" element={
+            <RoleRoute role="MARKETING">
+              <Layout><CampaignCalendar /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/ads/google" element={
+            <RoleRoute role="MARKETING">
+              <Layout><GoogleAds /></Layout>
             </RoleRoute>
           } />
 
