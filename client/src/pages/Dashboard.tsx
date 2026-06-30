@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, DollarSign, Link2, CheckCircle2 } from "lucide-react";
 import { api } from "../lib/api";
 import { currency, pct, dateShort } from "../lib/format";
 
@@ -41,6 +41,45 @@ function StatCard({ label, value, sub, icon: Icon, trend, color = "blue" }: {
       <div className={`w-10 h-10 rounded-lg border flex items-center justify-center flex-shrink-0 ${colors[color]}`}>
         <Icon size={18} />
       </div>
+    </div>
+  );
+}
+
+function MeliConnectionCard() {
+  const { data } = useQuery<{ connected: boolean; meliUserId: string | null }>({
+    queryKey: ["meli-status"],
+    queryFn: () => api.get("/integrations/meli/status").then((r) => r.data),
+  });
+
+  const handleConnect = () => {
+    window.location.href = `${import.meta.env.VITE_API_URL ?? "https://gymtrack-dashboard.onrender.com"}/api/integrations/meli/auth`;
+  };
+
+  return (
+    <div className="card flex items-center justify-between p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center flex-shrink-0">
+          <Link2 size={18} />
+        </div>
+        <div>
+          <p className="text-white font-medium text-sm">MercadoLibre</p>
+          <p className="text-gray-500 text-xs">
+            {data?.connected ? `Conectado · ID ${data.meliUserId}` : "Sincroniza ventas automáticamente"}
+          </p>
+        </div>
+      </div>
+      {data?.connected ? (
+        <div className="flex items-center gap-1.5 text-green-400 text-sm font-medium">
+          <CheckCircle2 size={16} /> Conectado
+        </div>
+      ) : (
+        <button
+          onClick={handleConnect}
+          className="px-4 py-1.5 bg-yellow-400 text-gray-900 text-sm font-semibold rounded-lg hover:bg-yellow-300 transition-colors"
+        >
+          Conectar
+        </button>
+      )}
     </div>
   );
 }
@@ -113,6 +152,9 @@ export default function Dashboard() {
           sub={`de ${data.totalProducts} productos activos`}
         />
       </div>
+
+      {/* MercadoLibre connection */}
+      <MeliConnectionCard />
 
       {/* Charts row */}
       <div className="grid grid-cols-3 gap-4">
