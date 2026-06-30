@@ -10,7 +10,8 @@ import { currency } from "../lib/format";
 interface Product {
   id: string; name: string; sku: string; description?: string;
   categoryId?: string; category?: { id: string; name: string };
-  costPrice: number; sellPrice: number; stock: number; stockMinAlert: number; active: boolean;
+  costPrice: number; sellPrice: number; supplier?: string;
+  stock: number; stockMinAlert: number; active: boolean;
 }
 interface Category { id: string; name: string; }
 
@@ -22,7 +23,9 @@ const schema = z.object({
   sku: z.string().min(1, "Requerido"),
   description: z.string().optional(),
   categoryId: z.string().optional(),
+  costPrice: numOptional(),
   sellPrice: numField(),
+  supplier: z.string().optional(),
   stock: numOptional(),
   stockMinAlert: numOptional(),
 });
@@ -65,7 +68,8 @@ export default function Products() {
   function openEdit(p: Product) {
     setEditing(p);
     reset({ name: p.name, sku: p.sku, description: p.description ?? "", categoryId: p.categoryId ?? "",
-      sellPrice: Number(p.sellPrice), stock: p.stock, stockMinAlert: p.stockMinAlert });
+      costPrice: Number(p.costPrice), sellPrice: Number(p.sellPrice), supplier: p.supplier ?? "",
+      stock: p.stock, stockMinAlert: p.stockMinAlert });
     setModalOpen(true);
   }
   function closeModal() { setModalOpen(false); setEditing(null); reset({}); }
@@ -108,6 +112,8 @@ export default function Products() {
             <tr className="text-left">
               <th className="px-6 py-3 text-gray-400 font-medium">Producto</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Categoría</th>
+              <th className="px-4 py-3 text-gray-400 font-medium">Proveedor</th>
+              <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Precio</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Stock</th>
               <th className="px-4 py-3 text-gray-400 font-medium"></th>
@@ -115,9 +121,9 @@ export default function Products() {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
             ) : (
               filtered.map((p) => {
                 const lowStock = p.stock <= p.stockMinAlert;
@@ -130,6 +136,8 @@ export default function Products() {
                     <td className="px-4 py-4">
                       {p.category ? <span className="badge-blue">{p.category.name}</span> : <span className="text-gray-600">—</span>}
                     </td>
+                    <td className="px-4 py-4 text-gray-300 text-sm">{p.supplier || <span className="text-gray-600">—</span>}</td>
+                    <td className="px-4 py-4 text-right text-gray-300">{Number(p.costPrice) > 0 ? currency(Number(p.costPrice)) : <span className="text-gray-600">—</span>}</td>
                     <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(p.sellPrice))}</td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -189,9 +197,17 @@ export default function Products() {
                   </select>
                 </div>
                 <div>
+                  <label className="label">Costo</label>
+                  <input {...register("costPrice")} type="number" step="0.01" className="input" placeholder="0.00" />
+                </div>
+                <div>
                   <label className="label">Precio de venta</label>
                   <input {...register("sellPrice")} type="number" step="0.01" className="input" placeholder="0.00" />
                   {errors.sellPrice && <p className="text-red-400 text-xs mt-1">{errors.sellPrice.message}</p>}
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Proveedor (opcional)</label>
+                  <input {...register("supplier")} className="input" placeholder="Nombre del proveedor..." />
                 </div>
                 {!editing && (
                   <div>

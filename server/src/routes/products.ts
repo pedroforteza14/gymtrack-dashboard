@@ -13,6 +13,7 @@ const productSchema = z.object({
   categoryId: z.string().optional(),
   costPrice: z.number().min(0).default(0),
   sellPrice: z.number().min(0),
+  supplier: z.string().optional(),
   stock: z.number().int().min(0).optional(),
   stockMinAlert: z.number().int().min(0).optional(),
 });
