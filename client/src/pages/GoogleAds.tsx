@@ -9,8 +9,6 @@ interface GACampaign {
   metrics: { costMicros: { value: string }; impressions: { value: string }; clicks: { value: string }; conversions: { value: string } };
 }
 
-const BACKEND = import.meta.env.VITE_API_URL ?? "https://gymtrack-dashboard.onrender.com";
-
 export default function GoogleAds() {
   const { data: status } = useQuery<GAStatus>({
     queryKey: ["google-ads-status"],
@@ -24,7 +22,8 @@ export default function GoogleAds() {
   });
 
   const handleConnect = () => {
-    window.location.href = `${BACKEND}/api/integrations/google-ads/auth`;
+    const token = localStorage.getItem("token");
+    window.location.href = `${api.defaults.baseURL}/integrations/google-ads/auth?token=${token}`;
   };
 
   const totals = campaigns.reduce((acc, c) => ({

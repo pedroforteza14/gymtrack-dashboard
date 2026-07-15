@@ -78,7 +78,8 @@ export default function Products() {
     p.active && (
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      p.category?.name.toLowerCase().includes(search.toLowerCase())
+      p.category?.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.supplier?.toLowerCase().includes(search.toLowerCase())
     )
   );
 
@@ -100,7 +101,7 @@ export default function Products() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, SKU o categoría..."
+          placeholder="Buscar por nombre, SKU, categoría o proveedor..."
           className="input pl-9 max-w-sm"
         />
       </div>

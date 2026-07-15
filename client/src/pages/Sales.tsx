@@ -151,6 +151,15 @@ export default function Sales() {
     setFilterClient(""); setFilterFrom(""); setFilterTo(""); setPage(1);
   }
 
+  async function handleExportPDF() {
+    const params = new URLSearchParams({ page: "1", limit: "1000" });
+    if (filterClient) params.set("clientId", filterClient);
+    if (filterFrom)   params.set("dateFrom", filterFrom);
+    if (filterTo)     params.set("dateTo",   filterTo);
+    const { data: all } = await api.get(`/sales?${params}`);
+    exportSalesPDF(all.sales ?? []);
+  }
+
   const hasFilters = filterClient || filterFrom || filterTo;
 
   const totals = items.reduce(
@@ -190,7 +199,7 @@ export default function Sales() {
               </span>
             )}
           </button>
-          <button onClick={() => exportSalesPDF(sales)} className="btn-secondary" disabled={sales.length === 0}>
+          <button onClick={handleExportPDF} className="btn-secondary" disabled={sales.length === 0}>
             <Download size={15} /> PDF
           </button>
           <button onClick={() => setModal(true)} className="btn-primary">
@@ -557,6 +566,18 @@ export default function Sales() {
                 <div className="flex justify-between"><span className="text-gray-400">Ingresos</span><span className="text-white font-medium">{currency(Number(detail.totalRevenue))}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Ganancia</span><span className="text-green-400 font-medium">{currency(Number(detail.totalProfit))}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Margen</span><span>{pct(detail.totalRevenue > 0 ? (detail.totalProfit / detail.totalRevenue) * 100 : 0)}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Pago</span>
+                  <span className="flex items-center gap-2">
+                    {detail.paymentMethod && <span className="text-gray-300">{PAYMENT_LABELS[detail.paymentMethod]}</span>}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[detail.paymentStatus] ?? ""}`}>
+                      {STATUS_LABELS[detail.paymentStatus] ?? detail.paymentStatus}
+                    </span>
+                  </span>
+                </div>
+                {detail.pendingAmount != null && Number(detail.pendingAmount) > 0 && (
+                  <div className="flex justify-between"><span className="text-gray-400">Monto pendiente</span><span className="text-red-400 font-medium">{currency(Number(detail.pendingAmount))}</span></div>
+                )}
                 <div className="flex justify-between"><span className="text-gray-400">Fecha</span><span className="text-gray-300">{dateLong(detail.createdAt)}</span></div>
                 {detail.notes && <div className="flex justify-between"><span className="text-gray-400">Notas</span><span className="text-gray-300">{detail.notes}</span></div>}
               </div>

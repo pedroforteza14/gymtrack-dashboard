@@ -94,7 +94,7 @@ export default function Quotes() {
 
   const downloadPDF = (id: string) => {
     const token = localStorage.getItem("token");
-    window.open(`http://localhost:3001/api/quotes/${id}/pdf?token=${token}`, "_blank");
+    window.open(`${api.defaults.baseURL}/quotes/${id}/pdf?token=${token}`, "_blank");
   };
 
   return (

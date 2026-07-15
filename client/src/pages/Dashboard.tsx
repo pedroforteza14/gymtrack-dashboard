@@ -52,7 +52,7 @@ function MeliConnectionCard() {
   });
 
   const handleConnect = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL ?? "https://gymtrack-dashboard.onrender.com"}/api/integrations/meli/auth`;
+    window.location.href = `${api.defaults.baseURL}/integrations/meli/auth`;
   };
 
   return (
@@ -119,7 +119,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Ingresos del mes"
           value={currency(data.thisMonth.revenue)}
@@ -157,9 +157,9 @@ export default function Dashboard() {
       <MeliConnectionCard />
 
       {/* Charts row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Revenue area chart */}
-        <div className="card col-span-2">
+        <div className="card lg:col-span-2">
           <h3 className="font-semibold text-white mb-4">Ingresos y ganancia — últimos 30 días</h3>
           {revenueChartData.length === 0 ? (
             <div className="flex items-center justify-center h-48 text-gray-500 text-sm">Sin ventas registradas aún</div>
