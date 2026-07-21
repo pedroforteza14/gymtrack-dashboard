@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma db push && tsc",
+    "build": "node scripts/db-push.js && tsc",
     "start": "node dist/index.js",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
