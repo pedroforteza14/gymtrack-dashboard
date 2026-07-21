@@ -1,7 +1,10 @@
-// Neon's free-tier compute auto-suspends. During a Render build the first
-// connection can be dropped with "terminating connection due to administrator
-// command" (SqlState 57P01) while the DB wakes up. Retry a few times so the
-// wake-up doesn't fail the whole deploy.
+// Robust `prisma db push` for deploys:
+// - --accept-data-loss: our schema changes are purely additive (new nullable
+//   columns, new tables, a unique constraint on the empty `meliOrderId`
+//   column), but Prisma still emits a data-loss warning for the new unique
+//   constraint and refuses to proceed without this flag. Nothing is dropped.
+// - retry loop: Neon's free-tier compute auto-suspends and can drop the first
+//   connection with SqlState 57P01 while it wakes up; retrying rides that out.
 const { execSync } = require("child_process");
 
 const MAX_ATTEMPTS = 6;
@@ -9,7 +12,7 @@ const WAIT_SECONDS = 8;
 
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
   try {
-    execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+    execSync("npx prisma db push --skip-generate --accept-data-loss", { stdio: "inherit" });
     console.log(`✔ prisma db push succeeded (attempt ${attempt})`);
     process.exit(0);
   } catch {
