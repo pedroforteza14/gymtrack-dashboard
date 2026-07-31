@@ -140,7 +140,7 @@ export default function Products() {
                     <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(p.sellPrice))}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors">
+                        <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                           <Pencil size={14} />
                         </button>
                         <button

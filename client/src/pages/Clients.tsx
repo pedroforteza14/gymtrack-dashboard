@@ -68,12 +68,12 @@ export default function Clients() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Users size={24} className="text-blue-400" /> Clientes
+            <Users size={24} className="text-gray-200" /> Clientes
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">{clients.length} clientes registrados</p>
         </div>
         <button onClick={openCreate}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          className="flex items-center gap-2 bg-white hover:bg-gray-200 text-gray-950 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
           <Plus size={16} /> Nuevo cliente
         </button>
       </div>
@@ -83,7 +83,7 @@ export default function Clients() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         <input value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email o teléfono..."
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-gray-400" />
       </div>
 
       {/* Stats */}
@@ -125,8 +125,8 @@ export default function Clients() {
                 <tr key={c.id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-bold text-blue-400">{c.name[0].toUpperCase()}</span>
+                      <div className="w-9 h-9 rounded-full bg-gray-700/50 border border-gray-600/40 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-bold text-gray-200">{c.name[0].toUpperCase()}</span>
                       </div>
                       <div>
                         <p className="font-medium text-white">{c.name}</p>
@@ -151,7 +151,7 @@ export default function Clients() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
-                      <button onClick={() => openEdit(c)} className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-gray-700 rounded-lg transition-colors"><Pencil size={14} /></button>
+                      <button onClick={() => openEdit(c)} className="p-1.5 text-gray-500 hover:text-gray-200 hover:bg-gray-700 rounded-lg transition-colors"><Pencil size={14} /></button>
                       <button onClick={() => { if (confirm("¿Eliminar cliente?")) deleteMut.mutate(c.id); }}
                         className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"><Trash2 size={14} /></button>
                     </div>
@@ -183,20 +183,20 @@ export default function Clients() {
                   <input value={form[key as keyof typeof emptyForm]}
                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                     placeholder={placeholder}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
                 </div>
               ))}
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">Notas</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2} placeholder="Notas internas..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500 resize-none" />
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400 resize-none" />
               </div>
             </div>
             <div className="flex gap-3 px-6 pb-6">
               <button onClick={() => setModal(null)} className="flex-1 py-2 border border-gray-700 text-gray-400 hover:text-white rounded-lg text-sm transition-colors">Cancelar</button>
               <button onClick={submit} disabled={!form.name || createMut.isPending || updateMut.isPending}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+                className="flex-1 py-2 bg-white hover:bg-gray-200 disabled:opacity-50 text-gray-950 rounded-lg text-sm font-medium transition-colors">
                 {createMut.isPending || updateMut.isPending ? "Guardando..." : modal === "create" ? "Crear cliente" : "Guardar cambios"}
               </button>
             </div>

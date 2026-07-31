@@ -34,8 +34,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-600/20">
-            <Dumbbell size={28} className="text-white" />
+          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-white/10">
+            <Dumbbell size={28} className="text-gray-950" />
           </div>
           <h1 className="text-2xl font-bold text-white">GymTrack</h1>
           <p className="text-gray-400 mt-1 text-sm">Sistema de gestión de equipos</p>

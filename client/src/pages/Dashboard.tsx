@@ -20,7 +20,7 @@ function StatCard({ label, value, sub, icon: Icon, trend, color = "blue" }: {
   label: string; value: string; sub?: string; icon: React.ElementType; trend?: number; color?: string;
 }) {
   const colors: Record<string, string> = {
-    blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    blue: "bg-white/10 text-white border-white/20",
     green: "bg-green-500/10 text-green-400 border-green-500/20",
     yellow: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
     red: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -168,8 +168,8 @@ export default function Dashboard() {
               <AreaChart data={revenueChartData}>
                 <defs>
                   <linearGradient id="revenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#e5e7eb" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#e5e7eb" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="profit" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
@@ -185,7 +185,7 @@ export default function Dashboard() {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   formatter={((v: unknown, name: unknown) => [currency(Number(v)), name === "revenue" ? "Ingresos" : "Ganancia"]) as any}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#revenue)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="revenue" stroke="#e5e7eb" fill="url(#revenue)" strokeWidth={2} dot={false} />
                 <Area type="monotone" dataKey="profit" stroke="#22c55e" fill="url(#profit)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -233,7 +233,7 @@ export default function Dashboard() {
             <tbody className="divide-y divide-gray-800/50">
               {data.recentSales.map((sale) => (
                 <tr key={sale.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="py-3 text-blue-400 font-mono font-medium">{sale.saleNumber}</td>
+                  <td className="py-3 text-gray-200 font-mono font-medium">{sale.saleNumber}</td>
                   <td className="py-3 text-gray-300 max-w-xs truncate">
                     {sale.items.map((i) => i.product.name).join(", ")}
                   </td>

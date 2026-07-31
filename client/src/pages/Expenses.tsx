@@ -202,7 +202,7 @@ export default function Expenses() {
                 <td className="px-4 py-3 text-right font-medium text-white">{currency(Number(e.amount))}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => openEdit(e)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors"><Pencil size={14} /></button>
+                    <button onClick={() => openEdit(e)} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"><Pencil size={14} /></button>
                     <button onClick={() => { if (confirm("¿Eliminar gasto?")) deleteMut.mutate(e.id); }} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
                 </td>

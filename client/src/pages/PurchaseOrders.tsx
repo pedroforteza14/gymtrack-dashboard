@@ -15,7 +15,7 @@ interface PurchaseOrder {
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING:   { label: "Pendiente",  color: "bg-yellow-400/10 text-yellow-400" },
-  PARTIAL:   { label: "Parcial",    color: "bg-blue-400/10 text-blue-400" },
+  PARTIAL:   { label: "Parcial",    color: "bg-white/10 text-gray-200" },
   RECEIVED:  { label: "Recibida",   color: "bg-green-400/10 text-green-400" },
   CANCELLED: { label: "Cancelada",  color: "bg-red-400/10 text-red-400" },
 };
@@ -110,7 +110,7 @@ export default function PurchaseOrders() {
                       {o.status === "PENDING" && (
                         <>
                           <button
-                            onClick={() => { if (confirm("¿Marcar como recibida? Esto actualizará el stock.")) receiveMutation.mutate(o.id); }}
+                            onClick={() => { if (confirm("¿Marcar esta orden como recibida?")) receiveMutation.mutate(o.id); }}
                             className="flex items-center gap-1 px-2 py-1 text-xs text-green-400 hover:bg-green-400/10 rounded-lg transition-colors"
                           >
                             <CheckCircle2 size={13} /> Recibir
@@ -160,7 +160,7 @@ export default function PurchaseOrders() {
                 <div className="flex items-center justify-between mb-2">
                   <label className="label mb-0">Productos</label>
                   <button type="button" onClick={() => append({ productId: "", quantity: 1, unitCost: 0 })}
-                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                    className="text-xs text-gray-200 hover:text-gray-100 flex items-center gap-1">
                     <Plus size={12} /> Agregar
                   </button>
                 </div>

@@ -189,12 +189,12 @@ export default function Sales() {
         <div className="flex gap-2">
           <button
             onClick={() => setFiltersOpen((v) => !v)}
-            className={`btn-secondary ${hasFilters ? "border-blue-500/50 text-blue-400" : ""}`}
+            className={`btn-secondary ${hasFilters ? "border-gray-400/50 text-gray-200" : ""}`}
           >
             <Filter size={15} />
             Filtros
             {hasFilters && (
-              <span className="ml-1 bg-blue-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="ml-1 bg-white text-gray-950 text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
                 {[filterClient, filterFrom, filterTo].filter(Boolean).length}
               </span>
             )}
@@ -214,7 +214,7 @@ export default function Sales() {
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-white">Filtrar ventas</p>
             {hasFilters && (
-              <button onClick={clearFilters} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+              <button onClick={clearFilters} className="text-xs text-gray-200 hover:text-gray-100 transition-colors">
                 Limpiar filtros
               </button>
             )}
@@ -290,7 +290,7 @@ export default function Sales() {
                     className="hover:bg-gray-800/30 transition-colors cursor-pointer"
                     onClick={() => setDetail(sale)}
                   >
-                    <td className="px-6 py-4 text-blue-400 font-mono font-medium">{sale.saleNumber}</td>
+                    <td className="px-6 py-4 text-gray-200 font-mono font-medium">{sale.saleNumber}</td>
                     <td className="px-4 py-4">
                       {sale.client ? (
                         <span className="flex items-center gap-1.5 text-gray-300">

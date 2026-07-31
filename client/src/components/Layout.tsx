@@ -43,8 +43,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <aside className="w-64 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
         {/* Logo */}
         <div className="px-6 py-5 border-b border-gray-800 flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isMarketing ? "bg-purple-600" : "bg-blue-600"}`}>
-            {isMarketing ? <TrendingUp size={18} className="text-white" /> : <Dumbbell size={18} className="text-white" />}
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white">
+            {isMarketing ? <TrendingUp size={18} className="text-gray-950" /> : <Dumbbell size={18} className="text-gray-950" />}
           </div>
           <div>
             <p className="font-bold text-white leading-tight">{isMarketing ? "AdsTrack" : "GymTrack"}</p>
@@ -54,9 +54,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Rol badge */}
         <div className="px-4 pt-3">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium w-full justify-center ${
-            isMarketing ? "bg-purple-600/20 text-purple-400 border border-purple-600/30" : "bg-blue-600/20 text-blue-400 border border-blue-600/30"
-          }`}>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium w-full justify-center bg-gray-800 text-gray-300 border border-gray-700">
             {isMarketing ? "👤 Marketing" : "🏠 Dueño del local"}
           </span>
         </div>
@@ -73,7 +71,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 to={to}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   active
-                    ? isMarketing ? "bg-purple-600 text-white" : "bg-blue-600 text-white"
+                    ? "bg-white text-gray-950"
                     : "text-gray-400 hover:text-gray-100 hover:bg-gray-800"
                 }`}
               >
@@ -87,9 +85,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* User */}
         <div className="px-3 py-4 border-t border-gray-800">
           <div className="flex items-center gap-3 px-3 py-2 mb-1">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
-              isMarketing ? "bg-purple-600/30 border-purple-600/50" : "bg-blue-600/30 border-blue-600/50"
-            }`}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-gray-800 border-gray-700">
               <span className="text-sm font-bold text-white">
                 {user?.name?.[0]?.toUpperCase() ?? "?"}
               </span>

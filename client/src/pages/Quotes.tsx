@@ -19,7 +19,7 @@ interface Quote {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   DRAFT:    { label: "Borrador",  color: "text-gray-400 bg-gray-800",   icon: Clock },
-  SENT:     { label: "Enviado",   color: "text-blue-400 bg-blue-900/30", icon: Send },
+  SENT:     { label: "Enviado",   color: "text-gray-200 bg-gray-700/40", icon: Send },
   ACCEPTED: { label: "Aceptado", color: "text-green-400 bg-green-900/30", icon: CheckCircle },
   REJECTED: { label: "Rechazado", color: "text-red-400 bg-red-900/30",  icon: XCircle },
   EXPIRED:  { label: "Vencido",   color: "text-yellow-400 bg-yellow-900/30", icon: AlertCircle },
@@ -103,12 +103,12 @@ export default function Quotes() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FileText size={24} className="text-blue-400" /> Presupuestos
+            <FileText size={24} className="text-gray-200" /> Presupuestos
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">{quotes.length} presupuestos registrados</p>
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          className="flex items-center gap-2 bg-white hover:bg-gray-200 text-gray-950 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
           <Plus size={16} /> Nuevo presupuesto
         </button>
       </div>
@@ -135,7 +135,7 @@ export default function Quotes() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         <input value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por número o cliente..."
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-gray-400" />
       </div>
 
       {/* List */}
@@ -184,12 +184,12 @@ export default function Quotes() {
                   {/* Actions */}
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => downloadPDF(q.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-xs font-medium transition-colors">
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-colors">
                       <Download size={13} /> PDF
                     </button>
                     <select value={q.status}
                       onChange={(e) => statusMut.mutate({ id: q.id, status: e.target.value })}
-                      className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500">
+                      className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-gray-400">
                       {STATUS_ORDER.map((s) => (
                         <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
                       ))}
@@ -248,7 +248,7 @@ export default function Quotes() {
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Cliente (opcional)</label>
                   <select value={clientId} onChange={(e) => setClientId(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400">
                     <option value="">— Sin cliente —</option>
                     {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -256,7 +256,7 @@ export default function Quotes() {
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Validez (días)</label>
                   <input type="number" value={validDays} onChange={(e) => setValidDays(Number(e.target.value))} min={1}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
                 </div>
               </div>
 
@@ -264,7 +264,7 @@ export default function Quotes() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs text-gray-400">Productos *</label>
-                  <button onClick={addItem} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                  <button onClick={addItem} className="text-xs text-gray-200 hover:text-blue-300 flex items-center gap-1">
                     <Plus size={12} /> Agregar producto
                   </button>
                 </div>
@@ -274,7 +274,7 @@ export default function Quotes() {
                       <div className="col-span-5">
                         <select value={item.productId}
                           onChange={(e) => updateItem(i, "productId", e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400">
                           <option value="">Seleccionar...</option>
                           {products.map((p) => (
                             <option key={p.id} value={p.id}>{p.name}</option>
@@ -285,13 +285,13 @@ export default function Quotes() {
                         <input type="number" value={item.quantity} min={1}
                           onChange={(e) => updateItem(i, "quantity", Number(e.target.value))}
                           placeholder="Cant."
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500" />
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
                       </div>
                       <div className="col-span-4">
                         <input type="number" value={item.unitPrice}
                           onChange={(e) => updateItem(i, "unitPrice", Number(e.target.value))}
                           placeholder="Precio"
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500" />
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
                       </div>
                       <div className="col-span-1 flex justify-center">
                         <button onClick={() => removeItem(i)} className="text-gray-600 hover:text-red-400 transition-colors">
@@ -310,7 +310,7 @@ export default function Quotes() {
 
               {/* Total preview */}
               {items.length > 0 && (
-                <div className="bg-blue-600/10 border border-blue-600/20 rounded-lg px-4 py-3 flex justify-between items-center">
+                <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-4 py-3 flex justify-between items-center">
                   <span className="text-sm text-gray-400">Total presupuesto</span>
                   <span className="text-xl font-bold text-white">{currency(total)}</span>
                 </div>
@@ -321,7 +321,7 @@ export default function Quotes() {
                 <label className="text-xs text-gray-400 mb-1 block">Notas / condiciones</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
                   placeholder="Ej: Precio no incluye flete. Entrega en 15 días hábiles."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500 resize-none" />
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400 resize-none" />
               </div>
             </div>
 
@@ -329,7 +329,7 @@ export default function Quotes() {
               <button onClick={resetForm} className="flex-1 py-2 border border-gray-700 text-gray-400 hover:text-white rounded-lg text-sm transition-colors">Cancelar</button>
               <button onClick={() => createMut.mutate()}
                 disabled={items.length === 0 || items.some((i) => !i.productId) || createMut.isPending}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+                className="flex-1 py-2 bg-white hover:bg-gray-200 disabled:opacity-50 text-gray-950 rounded-lg text-sm font-medium transition-colors">
                 {createMut.isPending ? "Creando..." : "Crear presupuesto"}
               </button>
             </div>
