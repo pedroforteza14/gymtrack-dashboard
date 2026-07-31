@@ -80,7 +80,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { items, notes, clientId, paymentMethod, paymentStatus, pendingAmount } = parsed.data;
 
-  // Fetch products and validate stock
+  // Trabajo a pedido: no se controla stock. Solo validamos que el producto exista.
   const productIds = items.map((i) => i.productId);
   const products = await prisma.product.findMany({ where: { id: { in: productIds }, active: true } });
 
@@ -88,10 +88,6 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
     const product = products.find((p) => p.id === item.productId);
     if (!product) {
       res.status(400).json({ error: `Producto ${item.productId} no encontrado` });
-      return;
-    }
-    if (product.stock < item.quantity) {
-      res.status(400).json({ error: `Stock insuficiente para ${product.name}. Stock actual: ${product.stock}` });
       return;
     }
   }
@@ -140,22 +136,6 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       },
     });
 
-    for (const item of items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      });
-      await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          type: "SALE",
-          quantity: -item.quantity,
-          reason: `Venta ${saleNumber}`,
-          saleId: newSale.id,
-        },
-      });
-    }
-
     return newSale;
   });
 
@@ -170,12 +150,6 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
   if (!sale) { res.status(404).json({ error: "Venta no encontrada" }); return; }
 
   await prisma.$transaction(async (tx) => {
-    for (const item of sale.items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: item.quantity } },
-      });
-    }
     await tx.stockMovement.deleteMany({ where: { saleId: sale.id } });
     await tx.sale.delete({ where: { id: sale.id } });
   });

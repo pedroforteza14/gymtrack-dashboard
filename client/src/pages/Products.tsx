@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2, X, Search, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { currency } from "../lib/format";
 
@@ -116,18 +116,16 @@ export default function Products() {
               <th className="px-4 py-3 text-gray-400 font-medium">Proveedor</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Precio</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Stock</th>
               <th className="px-4 py-3 text-gray-400 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
             ) : (
               filtered.map((p) => {
-                const lowStock = p.stock <= p.stockMinAlert;
                 return (
                   <tr key={p.id} className="hover:bg-gray-800/30 transition-colors">
                     <td className="px-6 py-4">
@@ -140,13 +138,6 @@ export default function Products() {
                     <td className="px-4 py-4 text-gray-300 text-sm">{p.supplier || <span className="text-gray-600">—</span>}</td>
                     <td className="px-4 py-4 text-right text-gray-300">{Number(p.costPrice) > 0 ? currency(Number(p.costPrice)) : <span className="text-gray-600">—</span>}</td>
                     <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(p.sellPrice))}</td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {lowStock && <AlertTriangle size={13} className="text-yellow-400" />}
-                        <span className={`font-medium ${lowStock ? "text-yellow-400" : "text-gray-100"}`}>{p.stock}</span>
-                        <span className="text-gray-600 text-xs">ud</span>
-                      </div>
-                    </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors">
@@ -209,16 +200,6 @@ export default function Products() {
                 <div className="col-span-2">
                   <label className="label">Proveedor (opcional)</label>
                   <input {...register("supplier")} className="input" placeholder="Nombre del proveedor..." />
-                </div>
-                {!editing && (
-                  <div>
-                    <label className="label">Stock inicial</label>
-                    <input {...register("stock")} type="number" className="input" placeholder="0" />
-                  </div>
-                )}
-                <div>
-                  <label className="label">Alerta mínimo stock</label>
-                  <input {...register("stockMinAlert")} type="number" className="input" placeholder="5" />
                 </div>
                 <div className="col-span-2">
                   <label className="label">Descripción (opcional)</label>

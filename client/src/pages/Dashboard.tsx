@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, ShoppingCart, Package, AlertTriangle, DollarSign, Link2, CheckCircle2 } from "lucide-react";
+import { TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Link2, CheckCircle2 } from "lucide-react";
 import { api } from "../lib/api";
 import { currency, pct, dateShort } from "../lib/format";
 
@@ -145,11 +145,11 @@ export default function Dashboard() {
           sub="este mes"
         />
         <StatCard
-          label="Stock bajo"
-          value={String(data.lowStockCount)}
-          icon={data.lowStockCount > 0 ? AlertTriangle : Package}
-          color={data.lowStockCount > 0 ? "red" : "blue"}
-          sub={`de ${data.totalProducts} productos activos`}
+          label="Productos en catálogo"
+          value={String(data.totalProducts)}
+          icon={Package}
+          color="blue"
+          sub="activos"
         />
       </div>
 

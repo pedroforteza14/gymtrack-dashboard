@@ -5,7 +5,6 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
-import Stock from "./pages/Stock";
 import Clients from "./pages/Clients";
 import Quotes from "./pages/Quotes";
 import AgencyDashboard from "./pages/AgencyDashboard";
@@ -15,6 +14,7 @@ import AllCampaigns from "./pages/AllCampaigns";
 import Analytics from "./pages/Analytics";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import Expenses from "./pages/Expenses";
 import CampaignCalendar from "./pages/CampaignCalendar";
 import GoogleAds from "./pages/GoogleAds";
 import { getRole, isAuthenticated } from "./lib/auth";
@@ -59,11 +59,6 @@ export default function App() {
               <Layout><Sales /></Layout>
             </RoleRoute>
           } />
-          <Route path="/stock" element={
-            <RoleRoute role="OWNER">
-              <Layout><Stock /></Layout>
-            </RoleRoute>
-          } />
           <Route path="/clients" element={
             <RoleRoute role="OWNER">
               <Layout><Clients /></Layout>
@@ -82,6 +77,11 @@ export default function App() {
           <Route path="/purchase-orders" element={
             <RoleRoute role="OWNER">
               <Layout><PurchaseOrders /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/expenses" element={
+            <RoleRoute role="OWNER">
+              <Layout><Expenses /></Layout>
             </RoleRoute>
           } />
 

@@ -404,14 +404,14 @@ export default function Sales() {
                             className="input"
                           >
                             {activeProducts.map((p) => (
-                              <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>
+                              <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                           </select>
                         </div>
                         <div className="w-24">
                           <label className="label">Cantidad</label>
                           <input
-                            type="number" min="1" max={product?.stock}
+                            type="number" min="1"
                             value={item.quantity}
                             onChange={(e) => updateItem(idx, "quantity", e.target.value)}
                             className="input"
