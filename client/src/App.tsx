@@ -15,6 +15,7 @@ import Analytics from "./pages/Analytics";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Expenses from "./pages/Expenses";
+import Planos from "./pages/Planos";
 import CampaignCalendar from "./pages/CampaignCalendar";
 import GoogleAds from "./pages/GoogleAds";
 import { getRole, isAuthenticated } from "./lib/auth";
@@ -82,6 +83,11 @@ export default function App() {
           <Route path="/expenses" element={
             <RoleRoute role="OWNER">
               <Layout><Expenses /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/planos" element={
+            <RoleRoute role="OWNER">
+              <Layout><Planos /></Layout>
             </RoleRoute>
           } />
 

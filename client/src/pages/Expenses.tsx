@@ -13,12 +13,15 @@ interface Expense {
   concept: string;
   amount: number;
   paymentSource: string;
+  expenseType: string;
   category?: string;
   notes?: string;
 }
 
 interface Summary {
   totalSales: number;
+  companyExpenses: number;
+  personalExpenses: number;
   totalExpenses: number;
   salesProfit: number;
   balance: number;
@@ -42,7 +45,8 @@ function currentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const emptyForm = { date: new Date().toISOString().slice(0, 10), concept: "", amount: "", paymentSource: "EFECTIVO_MP", category: "", notes: "" };
+const emptyForm = { date: new Date().toISOString().slice(0, 10), concept: "", amount: "", paymentSource: "EFECTIVO_MP", expenseType: "EMPRESA", category: "", notes: "" };
+const TYPE_LABEL: Record<string, string> = { EMPRESA: "Empresa", PERSONAL: "Personal" };
 
 export default function Expenses() {
   const qc = useQueryClient();
@@ -50,6 +54,7 @@ export default function Expenses() {
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [typeFilter, setTypeFilter] = useState<"TODOS" | "EMPRESA" | "PERSONAL">("TODOS");
 
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["expenses", month],
@@ -82,7 +87,7 @@ export default function Expenses() {
 
   function openCreate() { setForm({ ...emptyForm, date: new Date().toISOString().slice(0, 10) }); setEditId(null); setModal("create"); }
   function openEdit(e: Expense) {
-    setForm({ date: e.date.slice(0, 10), concept: e.concept, amount: String(e.amount), paymentSource: e.paymentSource, category: e.category ?? "", notes: e.notes ?? "" });
+    setForm({ date: e.date.slice(0, 10), concept: e.concept, amount: String(e.amount), paymentSource: e.paymentSource, expenseType: e.expenseType ?? "EMPRESA", category: e.category ?? "", notes: e.notes ?? "" });
     setEditId(e.id); setModal("edit");
   }
   function closeModal() { setModal(null); setEditId(null); setForm(emptyForm); }
@@ -93,6 +98,7 @@ export default function Expenses() {
       concept: form.concept,
       amount: Number(form.amount),
       paymentSource: form.paymentSource,
+      expenseType: form.expenseType,
       category: form.category || undefined,
       notes: form.notes || undefined,
     });
@@ -100,6 +106,7 @@ export default function Expenses() {
 
   const balance = summary?.balance ?? 0;
   const monthLabel = new Date(`${month}-02`).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  const filteredExpenses = expenses.filter((e) => typeFilter === "TODOS" || e.expenseType === typeFilter);
 
   return (
     <div className="p-8 space-y-6">
@@ -125,7 +132,7 @@ export default function Expenses() {
       </div>
 
       {/* Balance cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="card p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-green-500/10 text-green-400"><ShoppingCart size={18} /></div>
@@ -137,20 +144,28 @@ export default function Expenses() {
         <div className="card p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-red-500/10 text-red-400"><TrendingDown size={18} /></div>
-            <span className="text-gray-400 text-sm">Gastos del mes</span>
+            <span className="text-gray-400 text-sm">Gastos empresa</span>
           </div>
-          <p className="text-2xl font-bold text-white">{currency(summary?.totalExpenses ?? 0)}</p>
-          <p className="text-xs text-gray-500 mt-1">{summary?.expensesCount ?? 0} gastos cargados</p>
+          <p className="text-2xl font-bold text-white">{currency(summary?.companyExpenses ?? 0)}</p>
+          <p className="text-xs text-gray-500 mt-1">Del negocio</p>
+        </div>
+        <div className="card p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded-lg bg-gray-500/10 text-gray-300"><Wallet size={18} /></div>
+            <span className="text-gray-400 text-sm">Gastos personales</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{currency(summary?.personalExpenses ?? 0)}</p>
+          <p className="text-xs text-gray-500 mt-1">No afectan el balance</p>
         </div>
         <div className={`card p-5 border ${balance >= 0 ? "border-green-500/30" : "border-red-500/30"}`}>
           <div className="flex items-center gap-3 mb-2">
             <div className={`p-2 rounded-lg ${balance >= 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
               {balance >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
             </div>
-            <span className="text-gray-400 text-sm">Balance (Ganancia / Pérdida)</span>
+            <span className="text-gray-400 text-sm">Balance del negocio</span>
           </div>
           <p className={`text-2xl font-bold ${balance >= 0 ? "text-green-400" : "text-red-400"}`}>{currency(balance)}</p>
-          <p className="text-xs text-gray-500 mt-1">Ventas − Gastos</p>
+          <p className="text-xs text-gray-500 mt-1">Ventas − Gastos empresa</p>
         </div>
       </div>
 
@@ -172,14 +187,28 @@ export default function Expenses() {
 
       {/* Expenses table */}
       <div className="card p-0 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-wrap gap-3">
           <h3 className="font-semibold text-white">Detalle de gastos</h3>
+          <div className="flex gap-1 bg-gray-800/60 rounded-lg p-1">
+            {(["TODOS", "EMPRESA", "PERSONAL"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  typeFilter === t ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                {t === "TODOS" ? "Todos" : TYPE_LABEL[t]}
+              </button>
+            ))}
+          </div>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">
               <th className="px-6 py-3 text-gray-400 font-medium">Fecha</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Concepto</th>
+              <th className="px-4 py-3 text-gray-400 font-medium">Tipo</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Categoría</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Medio de pago</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Monto</th>
@@ -188,13 +217,18 @@ export default function Expenses() {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
-            ) : expenses.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Sin gastos cargados este mes</td></tr>
-            ) : expenses.map((e) => (
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+            ) : filteredExpenses.length === 0 ? (
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Sin gastos {typeFilter !== "TODOS" ? `de tipo ${TYPE_LABEL[typeFilter].toLowerCase()}` : "cargados este mes"}</td></tr>
+            ) : filteredExpenses.map((e) => (
               <tr key={e.id} className="hover:bg-gray-800/30">
                 <td className="px-6 py-3 text-gray-400">{new Date(e.date).toLocaleDateString("es-AR")}</td>
                 <td className="px-4 py-3 text-gray-100 font-medium">{e.concept}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${e.expenseType === "PERSONAL" ? "bg-gray-600/40 text-gray-300" : "bg-white/10 text-white"}`}>
+                    {TYPE_LABEL[e.expenseType] ?? e.expenseType}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-gray-400">{e.category || "—"}</td>
                 <td className="px-4 py-3">
                   <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/60 text-gray-300">{SOURCE_LABEL[e.paymentSource] ?? e.paymentSource}</span>
@@ -234,6 +268,25 @@ export default function Expenses() {
               <div>
                 <label className="label">Concepto</label>
                 <input value={form.concept} onChange={(e) => setForm({ ...form, concept: e.target.value })} className="input" placeholder="Ej: Nafta, Facebook, Alquiler..." />
+              </div>
+              <div>
+                <label className="label">Tipo de gasto</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["EMPRESA", "PERSONAL"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm({ ...form, expenseType: t })}
+                      className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
+                        form.expenseType === t
+                          ? "bg-white text-gray-950 border-white"
+                          : "bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-500"
+                      }`}
+                    >
+                      {TYPE_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

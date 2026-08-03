@@ -8,11 +8,14 @@ router.use(authMiddleware);
 
 const PAYMENT_SOURCES = ["VISA", "MASTER", "PAPA", "EFECTIVO_MP", "OTRO"] as const;
 
+const EXPENSE_TYPES = ["EMPRESA", "PERSONAL"] as const;
+
 const expenseSchema = z.object({
   date: z.string(),
   concept: z.string().min(1),
   amount: z.number().positive(),
   paymentSource: z.enum(PAYMENT_SOURCES).default("EFECTIVO_MP"),
+  expenseType: z.enum(EXPENSE_TYPES).default("EMPRESA"),
   category: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -47,13 +50,18 @@ router.get("/summary", async (req: AuthRequest, res: Response): Promise<void> =>
     prisma.sale.findMany({ where: { createdAt: { gte: start, lt: end } }, select: { totalRevenue: true, totalProfit: true } }),
   ]);
 
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const companyExpenses = expenses.filter((e) => e.expenseType !== "PERSONAL").reduce((s, e) => s + Number(e.amount), 0);
+  const personalExpenses = expenses.filter((e) => e.expenseType === "PERSONAL").reduce((s, e) => s + Number(e.amount), 0);
+  const totalExpenses = companyExpenses + personalExpenses;
   const totalSales = sales.reduce((s, v) => s + Number(v.totalRevenue), 0);
   const salesProfit = sales.reduce((s, v) => s + Number(v.totalProfit), 0);
 
+  // Desglose por medio de pago (solo gastos de empresa)
   const bySource: Record<string, number> = {};
   for (const src of PAYMENT_SOURCES) bySource[src] = 0;
-  for (const e of expenses) bySource[e.paymentSource] = (bySource[e.paymentSource] ?? 0) + Number(e.amount);
+  for (const e of expenses.filter((x) => x.expenseType !== "PERSONAL")) {
+    bySource[e.paymentSource] = (bySource[e.paymentSource] ?? 0) + Number(e.amount);
+  }
 
   const byCategory: Record<string, number> = {};
   for (const e of expenses) {
@@ -63,9 +71,11 @@ router.get("/summary", async (req: AuthRequest, res: Response): Promise<void> =>
 
   res.json({
     totalSales,
+    companyExpenses,
+    personalExpenses,
     totalExpenses,
     salesProfit,
-    balance: totalSales - totalExpenses,
+    balance: totalSales - companyExpenses,
     salesCount: sales.length,
     expensesCount: expenses.length,
     bySource,
