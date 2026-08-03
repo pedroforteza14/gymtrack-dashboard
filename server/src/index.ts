@@ -24,7 +24,7 @@ import { syncAllMetrics } from "./lib/syncMetrics";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({
   origin: (origin, cb) => cb(null, true),
   credentials: true,
