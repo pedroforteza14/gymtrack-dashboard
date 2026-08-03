@@ -13,7 +13,7 @@ import AdAccounts from "./pages/AdAccounts";
 import AllCampaigns from "./pages/AllCampaigns";
 import Analytics from "./pages/Analytics";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
-import PurchaseOrders from "./pages/PurchaseOrders";
+import Fichas from "./pages/Fichas";
 import Expenses from "./pages/Expenses";
 import Planos from "./pages/Planos";
 import CampaignCalendar from "./pages/CampaignCalendar";
@@ -75,9 +75,9 @@ export default function App() {
               <Layout><Analytics /></Layout>
             </RoleRoute>
           } />
-          <Route path="/purchase-orders" element={
+          <Route path="/fichas" element={
             <RoleRoute role="OWNER">
-              <Layout><PurchaseOrders /></Layout>
+              <Layout><Fichas /></Layout>
             </RoleRoute>
           } />
           <Route path="/expenses" element={

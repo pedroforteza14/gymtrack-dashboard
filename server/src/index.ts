@@ -18,6 +18,7 @@ import purchaseOrdersRouter from "./routes/purchaseOrders";
 import googleAdsRouter from "./routes/googleAds";
 import expensesRouter from "./routes/expenses";
 import planosRouter from "./routes/planos";
+import fichasRouter from "./routes/fichas";
 import { syncAllMetrics } from "./lib/syncMetrics";
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/purchase-orders", purchaseOrdersRouter);
 app.use("/api/integrations/google-ads", googleAdsRouter);
 app.use("/api/expenses", expensesRouter);
 app.use("/api/planos", planosRouter);
+app.use("/api/fichas", fichasRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

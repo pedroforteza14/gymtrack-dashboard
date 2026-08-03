@@ -290,3 +290,36 @@ model Plano {
 
   @@index([status])
 }
+
+model FichaPedido {
+  id             String    @id @default(cuid())
+  fichaNumber    String    @unique
+  date           DateTime  @default(now())
+  estimatedDate  DateTime?
+  // Cliente
+  clientName     String
+  clientPhone    String?
+  clientLocation String?
+  // Pedido (items: [{ cantidad, producto }])
+  items          Json      @default("[]")
+  // Pago
+  total          Decimal   @default(0) @db.Decimal(12, 2)
+  deposit        Decimal   @default(0) @db.Decimal(12, 2)
+  paymentMethod  String?
+  // Entrega
+  deliveryType   String?
+  deliveryVia    String?
+  destination    String?
+  transportInfo  String?
+  // Observaciones
+  observations   String?
+  // Control interno
+  fabricatedAt   DateTime?
+  fabricatedBy   String?
+  packedAt       DateTime?
+  packedBy       String?
+  deliveredAt    DateTime?
+  deliveredBy    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
