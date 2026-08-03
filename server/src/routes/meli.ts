@@ -40,8 +40,11 @@ router.get("/callback", async (req, res) => {
     });
     res.redirect(`${FRONTEND_URL}?meli=connected`);
   } catch (err) {
-    console.error("MELI OAuth error:", err);
-    res.redirect(`${FRONTEND_URL}?meli=error`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const e = err as any;
+    const detail = e?.response?.data?.message || e?.response?.data?.error || e?.message || "unknown";
+    console.error("MELI OAuth error:", e?.response?.data ?? e);
+    res.redirect(`${FRONTEND_URL}?meli=error&reason=${encodeURIComponent(String(detail).slice(0, 160))}`);
   }
 });
 
