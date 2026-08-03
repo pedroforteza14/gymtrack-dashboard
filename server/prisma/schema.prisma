@@ -95,6 +95,10 @@ model Product {
   costPrice          Decimal             @db.Decimal(10, 2)
   sellPrice          Decimal             @db.Decimal(10, 2)
   supplier           String?
+  line               String?
+  imageName          String?
+  imageType          String?
+  imageData          String?             @db.Text
   stock              Int                 @default(0)
   stockMinAlert      Int                 @default(5)
   active             Boolean             @default(true)

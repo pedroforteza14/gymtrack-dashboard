@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2, X, Search, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search, Loader2, Upload, ImageIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { currency } from "../lib/format";
 
@@ -11,6 +11,7 @@ interface Product {
   id: string; name: string; sku: string; description?: string;
   categoryId?: string; category?: { id: string; name: string };
   costPrice: number; sellPrice: number; supplier?: string;
+  line?: string; imageName?: string;
   stock: number; stockMinAlert: number; active: boolean;
 }
 interface Category { id: string; name: string; }
@@ -23,19 +24,26 @@ const schema = z.object({
   sku: z.string().min(1, "Requerido"),
   description: z.string().optional(),
   categoryId: z.string().optional(),
+  line: z.string().optional(),
   costPrice: numOptional(),
   sellPrice: numField(),
   supplier: z.string().optional(),
-  stock: numOptional(),
-  stockMinAlert: numOptional(),
 });
 type FormData = z.infer<typeof schema>;
+
+const MAX_IMG_MB = 2.5;
+const token = () => localStorage.getItem("token");
+const imgUrl = (id: string) => `${api.defaults.baseURL}/products/${id}/image?token=${token()}`;
 
 export default function Products() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [lineFilter, setLineFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [imgPreview, setImgPreview] = useState<string | null>(null); // data URL
+  const [imgMeta, setImgMeta] = useState<{ name: string; type: string } | null>(null);
+  const [imgErr, setImgErr] = useState("");
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["products"],
@@ -47,10 +55,15 @@ export default function Products() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (data: unknown) =>
-      editing
-        ? api.put(`/products/${editing.id}`, data)
-        : api.post("/products", data),
+    mutationFn: (data: FormData) => {
+      const payload: Record<string, unknown> = { ...data };
+      if (imgPreview && imgMeta) {
+        payload.imageData = imgPreview.split(",")[1];
+        payload.imageName = imgMeta.name;
+        payload.imageType = imgMeta.type;
+      }
+      return editing ? api.put(`/products/${editing.id}`, payload) : api.post("/products", payload);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); closeModal(); },
   });
 
@@ -59,27 +72,42 @@ export default function Products() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(schema) as any,
   });
 
-  function openCreate() { setEditing(null); reset({}); setModalOpen(true); }
+  function resetImg() { setImgPreview(null); setImgMeta(null); setImgErr(""); }
+  function openCreate() { setEditing(null); reset({}); resetImg(); setModalOpen(true); }
   function openEdit(p: Product) {
     setEditing(p);
     reset({ name: p.name, sku: p.sku, description: p.description ?? "", categoryId: p.categoryId ?? "",
-      costPrice: Number(p.costPrice), sellPrice: Number(p.sellPrice), supplier: p.supplier ?? "",
-      stock: p.stock, stockMinAlert: p.stockMinAlert });
+      line: p.line ?? "", costPrice: Number(p.costPrice), sellPrice: Number(p.sellPrice), supplier: p.supplier ?? "" });
+    resetImg();
     setModalOpen(true);
   }
-  function closeModal() { setModalOpen(false); setEditing(null); reset({}); }
+  function closeModal() { setModalOpen(false); setEditing(null); reset({}); resetImg(); }
+
+  function onPickImage(f: File | null) {
+    setImgErr("");
+    if (!f) return;
+    if (f.size > MAX_IMG_MB * 1024 * 1024) { setImgErr(`La imagen supera ${MAX_IMG_MB} MB`); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setImgPreview(String(reader.result)); setImgMeta({ name: f.name, type: f.type || "image/jpeg" }); };
+    reader.readAsDataURL(f);
+  }
+
+  const lines = Array.from(new Set(products.map((p) => p.line).filter(Boolean))) as string[];
 
   const filtered = products.filter((p) =>
-    p.active && (
+    p.active &&
+    (!lineFilter || p.line === lineFilter) &&
+    (
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       p.category?.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplier?.toLowerCase().includes(search.toLowerCase())
+      p.supplier?.toLowerCase().includes(search.toLowerCase()) ||
+      p.line?.toLowerCase().includes(search.toLowerCase())
     )
   );
 
@@ -95,81 +123,95 @@ export default function Products() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, SKU, categoría o proveedor..."
-          className="input pl-9 max-w-sm"
-        />
+      {/* Search + line filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, SKU, categoría, línea o proveedor..."
+            className="input pl-9 w-80 max-w-full"
+          />
+        </div>
+        {lines.length > 0 && (
+          <div className="flex gap-1 bg-gray-800/60 rounded-lg p-1">
+            <button onClick={() => setLineFilter("")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${!lineFilter ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"}`}>Todas</button>
+            {lines.map((l) => (
+              <button key={l} onClick={() => setLineFilter(l)} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${lineFilter === l ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"}`}>{l}</button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="card p-0 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-800/50">
-            <tr className="text-left">
-              <th className="px-6 py-3 text-gray-400 font-medium">Producto</th>
-              <th className="px-4 py-3 text-gray-400 font-medium">Categoría</th>
-              <th className="px-4 py-3 text-gray-400 font-medium">Proveedor</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Precio</th>
-              <th className="px-4 py-3 text-gray-400 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800/50">
-            {isLoading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Sin productos</td></tr>
-            ) : (
-              filtered.map((p) => {
-                return (
-                  <tr key={p.id} className="hover:bg-gray-800/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-100">{p.name}</p>
-                      <p className="text-xs text-gray-500 font-mono">{p.sku}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      {p.category ? <span className="badge-blue">{p.category.name}</span> : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="px-4 py-4 text-gray-300 text-sm">{p.supplier || <span className="text-gray-600">—</span>}</td>
-                    <td className="px-4 py-4 text-right text-gray-300">{Number(p.costPrice) > 0 ? currency(Number(p.costPrice)) : <span className="text-gray-600">—</span>}</td>
-                    <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(p.sellPrice))}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => { if (confirm(`¿Eliminar ${p.name}?`)) deleteMutation.mutate(p.id); }}
-                          className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Card grid */}
+      {isLoading ? (
+        <div className="card p-12 text-center text-gray-500">Cargando...</div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-12 text-center text-gray-500">Sin productos</div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((p) => (
+            <div key={p.id} className="card p-0 overflow-hidden group flex flex-col">
+              {/* Image */}
+              <div className="aspect-square bg-gray-800/50 flex items-center justify-center overflow-hidden relative">
+                {p.imageName ? (
+                  <img src={imgUrl(p.id)} alt={p.name} className="w-full h-full object-cover" />
+                ) : (
+                  <ImageIcon size={40} className="text-gray-700" />
+                )}
+                {p.line && (
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/70 text-white backdrop-blur-sm">{p.line}</span>
+                )}
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => openEdit(p)} className="p-1.5 bg-black/70 text-white rounded-lg hover:bg-black backdrop-blur-sm"><Pencil size={13} /></button>
+                  <button onClick={() => { if (confirm(`¿Eliminar ${p.name}?`)) deleteMutation.mutate(p.id); }} className="p-1.5 bg-black/70 text-white rounded-lg hover:bg-red-600 backdrop-blur-sm"><Trash2 size={13} /></button>
+                </div>
+              </div>
+              {/* Info */}
+              <div className="p-4 flex flex-col gap-1 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-100 text-sm leading-tight">{p.name}</p>
+                </div>
+                <p className="text-xs text-gray-500 font-mono">{p.sku}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  {p.category && <span className="badge-blue">{p.category.name}</span>}
+                </div>
+                <p className="text-lg font-bold text-white mt-auto pt-2">{currency(Number(p.sellPrice))}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
               <h2 className="font-semibold text-white">{editing ? "Editar producto" : "Nuevo producto"}</h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-100 transition-colors">
-                <X size={20} />
-              </button>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-100 transition-colors"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSubmit((d) => saveMutation.mutate(d as unknown))} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="p-6 space-y-4">
+              {/* Imagen */}
+              <div>
+                <label className="label">Foto del producto</label>
+                <input id="prod-img" type="file" accept="image/*" className="hidden" onChange={(e) => onPickImage(e.target.files?.[0] ?? null)} />
+                <label htmlFor="prod-img" className="flex items-center gap-3 border border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-3 cursor-pointer transition-colors">
+                  <div className="w-16 h-16 rounded-lg bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {imgPreview ? (
+                      <img src={imgPreview} alt="preview" className="w-full h-full object-cover" />
+                    ) : editing?.imageName ? (
+                      <img src={imgUrl(editing.id)} alt="actual" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon size={22} className="text-gray-600" />
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-400 flex items-center gap-2"><Upload size={14} /> {imgPreview ? "Cambiar imagen" : "Subir imagen (máx. 2,5 MB)"}</div>
+                </label>
+                {imgErr && <p className="text-red-400 text-xs mt-1">{imgErr}</p>}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="label">Nombre del producto</label>
@@ -180,6 +222,11 @@ export default function Products() {
                   <label className="label">SKU</label>
                   <input {...register("sku")} className="input" placeholder="BAN-001" />
                   {errors.sku && <p className="text-red-400 text-xs mt-1">{errors.sku.message}</p>}
+                </div>
+                <div>
+                  <label className="label">Línea</label>
+                  <input {...register("line")} className="input" placeholder="Omega, Alfa..." list="lines-list" />
+                  <datalist id="lines-list">{lines.map((l) => <option key={l} value={l} />)}</datalist>
                 </div>
                 <div>
                   <label className="label">Categoría</label>
@@ -197,7 +244,7 @@ export default function Products() {
                   <input {...register("sellPrice")} type="number" step="0.01" className="input" placeholder="0.00" />
                   {errors.sellPrice && <p className="text-red-400 text-xs mt-1">{errors.sellPrice.message}</p>}
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="label">Proveedor (opcional)</label>
                   <input {...register("supplier")} className="input" placeholder="Nombre del proveedor..." />
                 </div>
@@ -207,6 +254,7 @@ export default function Products() {
                 </div>
               </div>
               {saveMutation.error && (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 <p className="text-red-400 text-sm">{(saveMutation.error as any)?.response?.data?.error || "Error al guardar"}</p>
               )}
               <div className="flex gap-3 pt-2">

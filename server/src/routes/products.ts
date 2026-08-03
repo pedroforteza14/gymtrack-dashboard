@@ -14,16 +14,43 @@ const productSchema = z.object({
   costPrice: z.number().min(0).default(0),
   sellPrice: z.number().min(0),
   supplier: z.string().optional(),
+  line: z.string().optional(),
+  imageName: z.string().optional(),
+  imageType: z.string().optional(),
+  imageData: z.string().optional(), // base64 sin prefijo data:
   stock: z.number().int().min(0).optional(),
   stockMinAlert: z.number().int().min(0).optional(),
 });
 
+const MAX_IMG_CHARS = 3_500_000; // ~2.6 MB en base64
+
+// Todos los campos menos imageData (pesa). imageName indica si hay foto.
+const productSelect = {
+  id: true, name: true, sku: true, description: true, categoryId: true,
+  costPrice: true, sellPrice: true, supplier: true, line: true,
+  imageName: true, imageType: true, stock: true, stockMinAlert: true,
+  active: true, createdAt: true, updatedAt: true,
+  category: true,
+} as const;
+
 router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const products = await prisma.product.findMany({
-    include: { category: true },
+    select: productSelect,
     orderBy: { createdAt: "desc" },
   });
   res.json(products);
+});
+
+// Servir la foto del producto (token por query para <img> y pestaña nueva)
+router.get("/:id/image", async (req: AuthRequest, res: Response): Promise<void> => {
+  const product = await prisma.product.findUnique({
+    where: { id: req.params.id },
+    select: { imageData: true, imageType: true, imageName: true },
+  });
+  if (!product?.imageData) { res.status(404).json({ error: "Sin imagen" }); return; }
+  res.setHeader("Content-Type", product.imageType || "image/jpeg");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.send(Buffer.from(product.imageData, "base64"));
 });
 
 router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -38,13 +65,19 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = productSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
-  const product = await prisma.product.create({ data: parsed.data as any });
+  if (parsed.data.imageData && parsed.data.imageData.length > MAX_IMG_CHARS) {
+    res.status(400).json({ error: "La imagen es muy grande (máx. 2,5 MB)" }); return;
+  }
+  const product = await prisma.product.create({ data: parsed.data as any, select: productSelect });
   res.status(201).json(product);
 });
 
 router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = productSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  if (parsed.data.imageData && parsed.data.imageData.length > MAX_IMG_CHARS) {
+    res.status(400).json({ error: "La imagen es muy grande (máx. 2,5 MB)" }); return;
+  }
 
   const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
   if (!existing) { res.status(404).json({ error: "Producto no encontrado" }); return; }
@@ -52,7 +85,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const product = await prisma.product.update({
     where: { id: req.params.id },
     data: parsed.data as any,
-    include: { category: true },
+    select: productSelect,
   });
 
   // Track price change
