@@ -45,6 +45,27 @@ router.get("/callback", async (req, res) => {
   }
 });
 
+// Devuelve un access token válido, renovándolo si venció (los de MELI duran 6hs)
+async function getValidAccessToken(tokenRecord: { meliUserId: string; accessToken: string; refreshToken: string; expiresAt: Date }): Promise<string> {
+  if (tokenRecord.expiresAt.getTime() > Date.now() + 60_000) return tokenRecord.accessToken;
+  const { data } = await axios.post(
+    "https://api.mercadolibre.com/oauth/token",
+    new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: APP_ID,
+      client_secret: CLIENT_SECRET,
+      refresh_token: tokenRecord.refreshToken,
+    }),
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+  );
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+  await db.meliToken.update({
+    where: { meliUserId: tokenRecord.meliUserId },
+    data: { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt },
+  });
+  return data.access_token;
+}
+
 // Webhook — receives order notifications from MELI
 router.post("/webhook", async (req, res) => {
   res.sendStatus(200); // MELI requires immediate 200
@@ -54,9 +75,10 @@ router.post("/webhook", async (req, res) => {
     const tokenRecord = await db.meliToken.findUnique({ where: { meliUserId: String(user_id) } });
     if (!tokenRecord) return;
 
+    const accessToken = await getValidAccessToken(tokenRecord);
     const orderId = String(resource).replace(/^\/orders\//, "");
     const { data: order } = await axios.get(`https://api.mercadolibre.com/orders/${orderId}`, {
-      headers: { Authorization: `Bearer ${tokenRecord.accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (order.status !== "paid") return;
