@@ -28,7 +28,7 @@ async function generateQuoteNumber(): Promise<string> {
 router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const quotes = await prisma.quote.findMany({
     include: {
-      client: { select: { name: true } },
+      client: { select: { name: true, phone: true } },
       items: { include: { product: { select: { name: true } } } },
     },
     orderBy: { createdAt: "desc" },

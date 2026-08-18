@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 import {
   FileText, Plus, Search, X, Trash2, Download, ChevronDown, ChevronUp,
-  CheckCircle, Clock, Send, XCircle, AlertCircle,
+  CheckCircle, Clock, Send, XCircle, AlertCircle, ClipboardList,
 } from "lucide-react";
 
 interface Product { id: string; name: string; sku: string; sellPrice: number; }
@@ -13,7 +14,7 @@ interface QuoteItem { productId: string; quantity: number; unitPrice: number; pr
 interface Quote {
   id: string; quoteNumber: string; status: string; totalAmount: number;
   createdAt: string; validDays: number; notes?: string;
-  client?: { name: string } | null;
+  client?: { name: string; phone?: string } | null;
   items: QuoteItem[];
 }
 
@@ -75,6 +76,19 @@ export default function Quotes() {
     mutationFn: ({ id, notes }: { id: string; notes: string }) =>
       api.put(`/quotes/${id}/notes`, { notes }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quotes"] }),
+  });
+
+  const navigate = useNavigate();
+  const convertMut = useMutation({
+    mutationFn: (q: Quote) => api.post("/fichas", {
+      clientName: q.client?.name || "Cliente",
+      clientPhone: q.client?.phone || undefined,
+      items: q.items.map((i) => ({ cantidad: i.quantity, producto: i.product?.name ?? "" })),
+      total: Number(q.totalAmount),
+      deposit: 0,
+      observations: q.notes || undefined,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); navigate("/fichas"); },
   });
 
   const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setItems([]); };
@@ -190,6 +204,11 @@ export default function Quotes() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => { if (confirm(`¿Convertir ${q.quoteNumber} en una ficha de pedido?`)) convertMut.mutate(q); }}
+                      title="Convertir en ficha de pedido"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-200 text-gray-950 rounded-lg text-xs font-semibold transition-colors">
+                      <ClipboardList size={13} /> A ficha
+                    </button>
                     <button onClick={() => downloadPDF(q.id)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-colors">
                       <Download size={13} /> PDF

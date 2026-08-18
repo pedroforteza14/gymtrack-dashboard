@@ -35,14 +35,13 @@ async function generateFichaNumber(): Promise<string> {
   return `FP-${String(count + 1).padStart(5, "0")}`;
 }
 
-// Convierte los campos de fecha string -> Date y limpia nulls
-function toData(input: z.infer<typeof fichaSchema>) {
-  const dateFields = ["estimatedDate", "fabricatedAt", "packedAt", "deliveredAt"] as const;
+// Convierte a Date solo los campos de fecha PRESENTES (no toca los ausentes,
+// así una edición parcial no borra las fechas que no se enviaron).
+function toData(input: Record<string, unknown>) {
   const data: Record<string, unknown> = { ...input };
-  for (const k of dateFields) {
-    data[k] = input[k] ? new Date(input[k] as string) : null;
+  for (const k of ["estimatedDate", "fabricatedAt", "packedAt", "deliveredAt"] as const) {
+    if (k in data) data[k] = data[k] ? new Date(data[k] as string) : null;
   }
-  data.items = input.items;
   return data;
 }
 

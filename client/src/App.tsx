@@ -14,6 +14,8 @@ import AllCampaigns from "./pages/AllCampaigns";
 import Analytics from "./pages/Analytics";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
 import Fichas from "./pages/Fichas";
+import Cobros from "./pages/Cobros";
+import Produccion from "./pages/Produccion";
 import Expenses from "./pages/Expenses";
 import Planos from "./pages/Planos";
 import CampaignCalendar from "./pages/CampaignCalendar";
@@ -78,6 +80,16 @@ export default function App() {
           <Route path="/fichas" element={
             <RoleRoute role="OWNER">
               <Layout><Fichas /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/cobros" element={
+            <RoleRoute role="OWNER">
+              <Layout><Cobros /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/produccion" element={
+            <RoleRoute role="OWNER">
+              <Layout><Produccion /></Layout>
             </RoleRoute>
           } />
           <Route path="/expenses" element={
