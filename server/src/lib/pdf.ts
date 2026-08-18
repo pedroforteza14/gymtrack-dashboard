@@ -20,10 +20,12 @@ interface QuoteData {
   totalAmount: number;
 }
 
-const BRAND_COLOR = "#3B5BDB";
-const DARK = "#1a1a2e";
-const GRAY = "#6b7280";
-const LIGHT_GRAY = "#f3f4f6";
+// Paleta monocromática (marca The Promise Machine)
+const INK = "#0f0f0f";
+const SOFT = "#3f3f46";
+const MUTED = "#71717a";
+const LINE = "#e4e4e7";
+const ZEBRA = "#fafafa";
 
 function formatARS(value: number): string {
   return new Intl.NumberFormat("es-AR", {
@@ -33,154 +35,145 @@ function formatARS(value: number): string {
   }).format(value);
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Borrador", SENT: "Enviado", ACCEPTED: "Aceptado",
+  REJECTED: "Rechazado", EXPIRED: "Vencido",
+};
+
+// Dibuja una pesa (barbell) minimalista en color `color`
+function drawBarbell(doc: PDFKit.PDFDocument, cx: number, cy: number, color: string) {
+  doc.save();
+  doc.fillColor(color);
+  // barra
+  doc.roundedRect(cx - 15, cy - 1.6, 30, 3.2, 1.6).fill();
+  // discos
+  doc.roundedRect(cx - 17, cy - 6.5, 4.5, 13, 1.5).fill();
+  doc.roundedRect(cx - 11.5, cy - 9, 4, 18, 1.5).fill();
+  doc.roundedRect(cx + 7.5, cy - 9, 4, 18, 1.5).fill();
+  doc.roundedRect(cx + 12.5, cy - 6.5, 4.5, 13, 1.5).fill();
+  doc.restore();
+}
+
 export function generateQuotePDF(quote: QuoteData, res: Response): void {
-  const doc = new PDFDocument({ margin: 50, size: "A4" });
+  const doc = new PDFDocument({ margin: 44, size: "A4" });
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="presupuesto-${quote.quoteNumber}.pdf"`);
   doc.pipe(res);
 
-  // ── Header ──────────────────────────────────────────────────────────
-  doc.rect(0, 0, doc.page.width, 90).fill(DARK);
+  const L = 44;
+  const R = doc.page.width - 44;
+  const W = R - L;
 
-  doc.fontSize(22).fillColor("#ffffff").font("Helvetica-Bold")
-    .text("THE PROMISE MACHINE", 50, 25);
-  doc.fontSize(9).fillColor("#94a3b8").font("Helvetica")
-    .text("Fabricantes de máquinas de gimnasio", 50, 52);
-  doc.fontSize(9).fillColor("#94a3b8")
-    .text("thepromisemachine.com.ar", 50, 65);
+  // ── Header (banda negra) ─────────────────────────────────
+  doc.rect(0, 0, doc.page.width, 104).fill(INK);
 
-  // Quote number badge
-  doc.roundedRect(doc.page.width - 180, 20, 130, 50, 6).fill(BRAND_COLOR);
-  doc.fontSize(8).fillColor("#ffffff").font("Helvetica-Bold")
-    .text("PRESUPUESTO", doc.page.width - 175, 28, { width: 120, align: "center" });
-  doc.fontSize(14).fillColor("#ffffff").font("Helvetica-Bold")
-    .text(quote.quoteNumber, doc.page.width - 175, 42, { width: 120, align: "center" });
+  // marca: círculo con pesa
+  doc.save();
+  doc.lineWidth(1.4).strokeColor("#ffffff").circle(L + 20, 40, 19).stroke();
+  drawBarbell(doc, L + 20, 40, "#ffffff");
+  doc.restore();
 
-  // ── Info row ─────────────────────────────────────────────────────────
-  doc.rect(0, 90, doc.page.width, 1).fill("#e5e7eb");
+  doc.fontSize(17).fillColor("#ffffff").font("Helvetica-Bold")
+    .text("THE PROMISE MACHINE", L + 52, 27);
+  doc.fontSize(8.5).fillColor("#a1a1aa").font("Helvetica")
+    .text("Fabricación de equipamiento de gimnasio · Directo de fábrica", L + 52, 48);
+  doc.fontSize(8.5).fillColor("#a1a1aa")
+    .text("thepromisemachine.com.ar", L + 52, 61);
 
-  const fecha = new Date(quote.createdAt).toLocaleDateString("es-AR", {
-    day: "2-digit", month: "long", year: "numeric",
-  });
-  const vence = new Date(
-    new Date(quote.createdAt).getTime() + quote.validDays * 86400000
-  ).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
+  // Badge PRESUPUESTO (derecha, contorno blanco)
+  const bw = 150, bx = R - bw;
+  doc.lineWidth(1).strokeColor("#3f3f46").roundedRect(bx, 22, bw, 44, 6).stroke();
+  doc.fontSize(8).fillColor("#a1a1aa").font("Helvetica-Bold")
+    .text("PRESUPUESTO", bx, 31, { width: bw, align: "center", characterSpacing: 1 });
+  doc.fontSize(15).fillColor("#ffffff").font("Helvetica-Bold")
+    .text(quote.quoteNumber, bx, 44, { width: bw, align: "center" });
 
-  doc.rect(0, 91, doc.page.width, 45).fill(LIGHT_GRAY);
+  // ── Info strip ───────────────────────────────────────────
+  let y = 128;
+  const fecha = new Date(quote.createdAt).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
+  const vence = new Date(new Date(quote.createdAt).getTime() + quote.validDays * 86400000)
+    .toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
 
-  doc.fontSize(8).fillColor(GRAY).font("Helvetica")
-    .text("FECHA DE EMISIÓN", 50, 100)
-    .text("VÁLIDO HASTA", 220, 100)
-    .text("ESTADO", 390, 100);
-
-  const statusLabel: Record<string, string> = {
-    DRAFT: "Borrador", SENT: "Enviado", ACCEPTED: "Aceptado",
-    REJECTED: "Rechazado", EXPIRED: "Vencido",
+  const infoCol = (label: string, value: string, x: number) => {
+    doc.fontSize(7.5).fillColor(MUTED).font("Helvetica-Bold").text(label, x, y, { characterSpacing: 0.5 });
+    doc.fontSize(10.5).fillColor(INK).font("Helvetica-Bold").text(value, x, y + 12);
   };
+  infoCol("FECHA DE EMISIÓN", fecha, L);
+  infoCol("VÁLIDO HASTA", vence, L + W / 3);
+  infoCol("ESTADO", STATUS_LABEL[quote.status] ?? quote.status, L + (2 * W) / 3);
+  y += 40;
+  doc.rect(L, y, W, 0.8).fill(LINE);
+  y += 20;
 
-  doc.fontSize(10).fillColor(DARK).font("Helvetica-Bold")
-    .text(fecha, 50, 112)
-    .text(vence, 220, 112)
-    .text(statusLabel[quote.status] ?? quote.status, 390, 112);
-
-  // ── Client ────────────────────────────────────────────────────────────
-  let y = 155;
-
+  // ── Cliente ──────────────────────────────────────────────
   if (quote.client) {
-    doc.fontSize(9).fillColor(BRAND_COLOR).font("Helvetica-Bold")
-      .text("DATOS DEL CLIENTE", 50, y);
-    y += 14;
-    doc.rect(50, y, doc.page.width - 100, 0.5).fill("#e5e7eb");
-    y += 8;
-
-    doc.fontSize(11).fillColor(DARK).font("Helvetica-Bold")
-      .text(quote.client.name, 50, y);
-    y += 14;
-
-    if (quote.client.email) {
-      doc.fontSize(9).fillColor(GRAY).font("Helvetica")
-        .text(`Email: ${quote.client.email}`, 50, y);
-      y += 12;
+    doc.fontSize(8).fillColor(MUTED).font("Helvetica-Bold").text("PRESUPUESTO PARA", L, y, { characterSpacing: 0.5 });
+    y += 13;
+    doc.fontSize(12.5).fillColor(INK).font("Helvetica-Bold").text(quote.client.name, L, y);
+    y += 16;
+    const parts: string[] = [];
+    if (quote.client.phone) parts.push(`Tel: ${quote.client.phone}`);
+    if (quote.client.email) parts.push(quote.client.email);
+    if (quote.client.address) parts.push(quote.client.address);
+    if (parts.length) {
+      doc.fontSize(9).fillColor(SOFT).font("Helvetica").text(parts.join("   ·   "), L, y);
+      y += 14;
     }
-    if (quote.client.phone) {
-      doc.fontSize(9).fillColor(GRAY).font("Helvetica")
-        .text(`Teléfono: ${quote.client.phone}`, 50, y);
-      y += 12;
-    }
-    if (quote.client.address) {
-      doc.fontSize(9).fillColor(GRAY).font("Helvetica")
-        .text(`Dirección: ${quote.client.address}`, 50, y);
-      y += 12;
-    }
-    y += 12;
+    y += 10;
   }
 
-  // ── Table header ─────────────────────────────────────────────────────
-  doc.fontSize(9).fillColor(BRAND_COLOR).font("Helvetica-Bold")
-    .text("DETALLE DE PRODUCTOS", 50, y);
-  y += 14;
+  // ── Tabla de productos ───────────────────────────────────
+  const cQty = L + 8;
+  const cName = L + 55;
+  const cUnit = R - 200;
+  const cSub = R - 100;
 
-  doc.rect(50, y, doc.page.width - 100, 24).fill(DARK);
+  doc.rect(L, y, W, 26).fill(INK);
   doc.fontSize(8).fillColor("#ffffff").font("Helvetica-Bold")
-    .text("PRODUCTO", 58, y + 8)
-    .text("SKU", 310, y + 8)
-    .text("CANT.", 375, y + 8, { width: 40, align: "right" })
-    .text("P. UNIT.", 420, y + 8, { width: 65, align: "right" })
-    .text("SUBTOTAL", 490, y + 8, { width: 65, align: "right" });
-  y += 24;
+    .text("CANT.", cQty, y + 9)
+    .text("PRODUCTO", cName, y + 9)
+    .text("P. UNITARIO", cUnit, y + 9, { width: 90, align: "right" })
+    .text("SUBTOTAL", cSub, y + 9, { width: 90, align: "right" });
+  y += 26;
 
-  // ── Table rows ────────────────────────────────────────────────────────
   quote.items.forEach((item, i) => {
-    const rowH = 22;
-    if (i % 2 === 0) {
-      doc.rect(50, y, doc.page.width - 100, rowH).fill("#f9fafb");
-    }
-    doc.fontSize(9).fillColor(DARK).font("Helvetica")
-      .text(item.name, 58, y + 6, { width: 245, ellipsis: true })
-      .text(item.sku, 310, y + 6, { width: 60 })
-      .text(String(item.quantity), 375, y + 6, { width: 40, align: "right" })
-      .text(formatARS(item.unitPrice), 420, y + 6, { width: 65, align: "right" })
-      .text(formatARS(item.subtotal), 490, y + 6, { width: 65, align: "right" });
+    const rowH = 24;
+    if (i % 2 === 1) doc.rect(L, y, W, rowH).fill(ZEBRA);
+    doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold").text(String(item.quantity), cQty, y + 7, { width: 40 });
+    doc.fontSize(9.5).fillColor(SOFT).font("Helvetica")
+      .text(item.name, cName, y + 7, { width: cUnit - cName - 10, ellipsis: true });
+    doc.fillColor(SOFT).text(formatARS(item.unitPrice), cUnit, y + 7, { width: 90, align: "right" });
+    doc.fillColor(INK).font("Helvetica-Bold").text(formatARS(item.subtotal), cSub, y + 7, { width: 90, align: "right" });
     y += rowH;
   });
+  doc.rect(L, y, W, 0.8).fill(LINE);
+  y += 16;
 
-  // ── Total ─────────────────────────────────────────────────────────────
-  y += 8;
-  doc.rect(50, y, doc.page.width - 100, 0.5).fill("#e5e7eb");
-  y += 10;
+  // ── Total ────────────────────────────────────────────────
+  const tw = 230, tx = R - tw;
+  doc.rect(tx, y, tw, 42).fill(INK);
+  doc.fontSize(10).fillColor("#a1a1aa").font("Helvetica-Bold").text("TOTAL", tx + 16, y + 15, { characterSpacing: 1 });
+  doc.fontSize(17).fillColor("#ffffff").font("Helvetica-Bold").text(formatARS(quote.totalAmount), tx + 16, y + 12, { width: tw - 32, align: "right" });
+  y += 42 + 24;
 
-  doc.rect(doc.page.width - 220, y, 170, 36).fill(BRAND_COLOR);
-  doc.fontSize(10).fillColor("#ffffff").font("Helvetica")
-    .text("TOTAL", doc.page.width - 215, y + 6, { width: 80 });
-  doc.fontSize(14).fillColor("#ffffff").font("Helvetica-Bold")
-    .text(formatARS(quote.totalAmount), doc.page.width - 215, y + 6, { width: 160, align: "right" });
-
-  y += 55;
-
-  // ── Notes ─────────────────────────────────────────────────────────────
-  if (quote.notes) {
-    doc.fontSize(9).fillColor(BRAND_COLOR).font("Helvetica-Bold").text("NOTAS", 50, y);
-    y += 12;
-    doc.fontSize(9).fillColor(GRAY).font("Helvetica")
-      .text(quote.notes, 50, y, { width: doc.page.width - 100 });
-    y += 30;
+  // ── Notas / modificaciones ───────────────────────────────
+  if (quote.notes && quote.notes.trim()) {
+    doc.fontSize(8).fillColor(MUTED).font("Helvetica-Bold").text("NOTAS / CONDICIONES", L, y, { characterSpacing: 0.5 });
+    y += 14;
+    const boxH = Math.max(38, doc.heightOfString(quote.notes, { width: W - 24, lineGap: 2 }) + 18);
+    doc.lineWidth(0.8).strokeColor(LINE).roundedRect(L, y, W, boxH, 6).stroke();
+    doc.fontSize(9.5).fillColor(SOFT).font("Helvetica").text(quote.notes, L + 12, y + 10, { width: W - 24, lineGap: 2 });
+    y += boxH;
   }
 
-  // ── Footer ────────────────────────────────────────────────────────────
-  const footerY = doc.page.height - 60;
-  doc.rect(0, footerY, doc.page.width, 60).fill(LIGHT_GRAY);
-  doc.rect(0, footerY, doc.page.width, 1).fill("#e5e7eb");
-
-  doc.fontSize(8).fillColor(GRAY).font("Helvetica")
-    .text(
-      "Este presupuesto tiene validez de " + quote.validDays + " días desde su emisión. " +
-      "Los precios están expresados en pesos argentinos (ARS).",
-      50, footerY + 12, { width: doc.page.width - 100, align: "center" }
-    )
-    .text("The Promise Machine — thepromisemachine.com.ar", 50, footerY + 30, {
-      width: doc.page.width - 100, align: "center",
-    });
+  // ── Footer ───────────────────────────────────────────────
+  const fy = doc.page.height - 58;
+  doc.rect(L, fy, W, 0.8).fill(LINE);
+  doc.fontSize(8).fillColor(MUTED).font("Helvetica")
+    .text(`Presupuesto válido por ${quote.validDays} días desde su emisión. Precios en pesos argentinos (ARS), sujetos a modificación sin previo aviso.`, L, fy + 12, { width: W, align: "center" });
+  doc.fontSize(8.5).fillColor(INK).font("Helvetica-Bold")
+    .text("THE PROMISE MACHINE  ·  thepromisemachine.com.ar", L, fy + 32, { width: W, align: "center" });
 
   doc.end();
 }
