@@ -1,5 +1,8 @@
 import PDFDocument from "pdfkit";
 import { Response } from "express";
+import { LOGO_WHITE_B64 } from "./logo";
+
+const LOGO_BUFFER = Buffer.from(LOGO_WHITE_B64, "base64");
 
 interface QuoteItem {
   name: string;
@@ -40,20 +43,6 @@ const STATUS_LABEL: Record<string, string> = {
   REJECTED: "Rechazado", EXPIRED: "Vencido",
 };
 
-// Dibuja una pesa (barbell) minimalista en color `color`
-function drawBarbell(doc: PDFKit.PDFDocument, cx: number, cy: number, color: string) {
-  doc.save();
-  doc.fillColor(color);
-  // barra
-  doc.roundedRect(cx - 15, cy - 1.6, 30, 3.2, 1.6).fill();
-  // discos
-  doc.roundedRect(cx - 17, cy - 6.5, 4.5, 13, 1.5).fill();
-  doc.roundedRect(cx - 11.5, cy - 9, 4, 18, 1.5).fill();
-  doc.roundedRect(cx + 7.5, cy - 9, 4, 18, 1.5).fill();
-  doc.roundedRect(cx + 12.5, cy - 6.5, 4.5, 13, 1.5).fill();
-  doc.restore();
-}
-
 export function generateQuotePDF(quote: QuoteData, res: Response): void {
   const doc = new PDFDocument({ margin: 44, size: "A4" });
 
@@ -65,21 +54,14 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
   const R = doc.page.width - 44;
   const W = R - L;
 
-  // ── Header (banda negra) ─────────────────────────────────
+  // ── Header (banda negra con logo real) ───────────────────
   doc.rect(0, 0, doc.page.width, 104).fill(INK);
 
-  // marca: círculo con pesa
-  doc.save();
-  doc.lineWidth(1.4).strokeColor("#ffffff").circle(L + 20, 40, 19).stroke();
-  drawBarbell(doc, L + 20, 40, "#ffffff");
-  doc.restore();
-
-  doc.fontSize(17).fillColor("#ffffff").font("Helvetica-Bold")
-    .text("THE PROMISE MACHINE", L + 52, 27);
+  doc.image(LOGO_BUFFER, L, 30, { height: 30 });
   doc.fontSize(8.5).fillColor("#a1a1aa").font("Helvetica")
-    .text("Fabricación de equipamiento de gimnasio · Directo de fábrica", L + 52, 48);
+    .text("Fabricación de equipamiento de gimnasio · Directo de fábrica", L, 68);
   doc.fontSize(8.5).fillColor("#a1a1aa")
-    .text("thepromisemachine.com.ar", L + 52, 61);
+    .text("thepromisemachine.com.ar", L, 80);
 
   // Badge PRESUPUESTO (derecha, contorno blanco)
   const bw = 150, bx = R - bw;
