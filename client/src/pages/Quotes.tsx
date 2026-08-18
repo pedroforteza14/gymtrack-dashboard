@@ -32,6 +32,7 @@ export default function Quotes() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editNotes, setEditNotes] = useState<Record<string, string>>({});
 
   // Form state
   const [clientId, setClientId] = useState("");
@@ -67,6 +68,12 @@ export default function Quotes() {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/quotes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["quotes"] }),
+  });
+
+  const notesMut = useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes: string }) =>
+      api.put(`/quotes/${id}/notes`, { notes }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quotes"] }),
   });
 
@@ -224,7 +231,26 @@ export default function Quotes() {
                         ))}
                       </tbody>
                     </table>
-                    {q.notes && <p className="mt-3 text-xs text-gray-500 italic border-t border-gray-800 pt-2">{q.notes}</p>}
+                    {/* Notas editables (modificaciones) */}
+                    <div className="mt-3 border-t border-gray-800 pt-3">
+                      <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Notas / modificaciones</label>
+                      <textarea
+                        value={editNotes[q.id] ?? q.notes ?? ""}
+                        onChange={(e) => setEditNotes({ ...editNotes, [q.id]: e.target.value })}
+                        rows={2}
+                        placeholder="Escribí una modificación, condición o aclaración para este presupuesto..."
+                        className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-gray-400 resize-none"
+                      />
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => notesMut.mutate({ id: q.id, notes: editNotes[q.id] ?? q.notes ?? "" })}
+                          disabled={notesMut.isPending || (editNotes[q.id] ?? q.notes ?? "") === (q.notes ?? "")}
+                          className="px-3 py-1.5 bg-white hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-950 rounded-lg text-xs font-semibold transition-colors"
+                        >
+                          {notesMut.isPending ? "Guardando..." : "Guardar nota"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

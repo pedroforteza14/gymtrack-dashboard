@@ -98,6 +98,20 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
   res.json(quote);
 });
 
+// Editar notas / validez de un presupuesto existente
+router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = z.object({
+    notes: z.string().optional(),
+    validDays: z.number().int().positive().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const quote = await prisma.quote.update({
+    where: { id: req.params.id },
+    data: parsed.data,
+  });
+  res.json(quote);
+});
+
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   await prisma.quote.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
