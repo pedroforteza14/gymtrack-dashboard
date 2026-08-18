@@ -1,11 +1,12 @@
 import { Link, useLocation, Navigate } from "react-router-dom";
 import {
-  LayoutDashboard, Package, ShoppingCart, LogOut, Dumbbell,
+  LayoutDashboard, Package, ShoppingCart, LogOut,
   TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory,
 } from "lucide-react";
 import { logout, isAuthenticated, getRole } from "../lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import { getMe } from "../lib/auth";
+import logo from "../assets/logo.png";
 
 const ownerNav = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -45,14 +46,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className="w-64 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
         {/* Logo */}
-        <div className="px-6 py-5 border-b border-gray-800 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white">
-            {isMarketing ? <TrendingUp size={18} className="text-gray-950" /> : <Dumbbell size={18} className="text-gray-950" />}
-          </div>
-          <div>
-            <p className="font-bold text-white leading-tight">{isMarketing ? "AdsTrack" : "GymTrack"}</p>
-            <p className="text-xs text-gray-500">{isMarketing ? "Gestión de campañas" : "Gestión de equipos"}</p>
-          </div>
+        <div className="px-6 py-5 border-b border-gray-800 flex items-center animate-logo">
+          {isMarketing ? (
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white">
+                <TrendingUp size={18} className="text-gray-950" />
+              </div>
+              <div>
+                <p className="font-bold text-white leading-tight">AdsTrack</p>
+                <p className="text-xs text-gray-500">Gestión de campañas</p>
+              </div>
+            </div>
+          ) : (
+            <img src={logo} alt="The Promise Machine" className="h-8 object-contain" />
+          )}
         </div>
 
         {/* Rol badge */}
@@ -109,7 +116,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto bg-gray-950">
+      <main key={location.pathname} className="flex-1 overflow-y-auto bg-gray-950 animate-page">
         {children}
       </main>
     </div>

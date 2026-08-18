@@ -4,7 +4,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { login } from "../lib/auth";
-import { Dumbbell, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import logo from "../assets/logo.png";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -33,12 +34,9 @@ export default function Login() {
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-white/10">
-            <Dumbbell size={28} className="text-gray-950" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">GymTrack</h1>
-          <p className="text-gray-400 mt-1 text-sm">Sistema de gestión de equipos</p>
+        <div className="text-center mb-8 animate-logo">
+          <img src={logo} alt="The Promise Machine" className="h-14 mx-auto mb-3 object-contain" />
+          <p className="text-gray-400 text-sm">Sistema de gestión</p>
         </div>
 
         <div className="card">
