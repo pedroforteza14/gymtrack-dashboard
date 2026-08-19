@@ -81,15 +81,24 @@ export default function Quotes() {
 
   const navigate = useNavigate();
   const convertMut = useMutation({
-    mutationFn: (q: Quote) => api.post("/fichas", {
-      clientName: q.client?.name || "Cliente",
-      clientPhone: q.client?.phone || undefined,
-      items: q.items.map((i) => ({ cantidad: i.quantity, producto: i.product?.name ?? "" })),
-      total: Number(q.totalAmount),
-      deposit: 0,
-      observations: q.notes || undefined,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success("Convertido a ficha de pedido ✓"); navigate("/fichas"); },
+    mutationFn: async (q: Quote) => {
+      await api.post("/fichas", {
+        clientName: q.client?.name || "Cliente",
+        clientPhone: q.client?.phone || undefined,
+        items: q.items.map((i) => ({ cantidad: i.quantity, producto: i.product?.name ?? "" })),
+        total: Number(q.totalAmount),
+        deposit: 0,
+        observations: q.notes || undefined,
+      });
+      // el presupuesto se convierte en ficha: lo sacamos de Presupuestos
+      await api.delete(`/quotes/${q.id}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fichas"] });
+      qc.invalidateQueries({ queryKey: ["quotes"] });
+      toast.success("Convertido a ficha de pedido ✓");
+      navigate("/fichas");
+    },
   });
 
   const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setItems([]); };

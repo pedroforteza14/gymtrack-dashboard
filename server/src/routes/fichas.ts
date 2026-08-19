@@ -64,6 +64,34 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promis
   res.status(201).json(ficha);
 });
 
+// Sincroniza la venta de una ficha entregada:
+// - si está entregada y no tiene venta → la crea (para que aparezca en Ventas/Dashboard)
+// - si dejó de estar entregada y tenía venta → la borra
+async function syncSaleForFicha(fichaId: string): Promise<void> {
+  const ficha = await prisma.fichaPedido.findUnique({ where: { id: fichaId } });
+  if (!ficha) return;
+  const existing = await prisma.sale.findUnique({ where: { fichaId } });
+  const delivered = !!ficha.deliveredAt;
+
+  if (delivered && !existing) {
+    const items = (ficha.items as unknown as FichaItem[]) ?? [];
+    const detalle = items.map((i) => `${i.cantidad}× ${i.producto}`).join(", ");
+    await prisma.sale.create({
+      data: {
+        saleNumber: `PED-${ficha.fichaNumber}`,
+        fichaId: ficha.id,
+        totalRevenue: ficha.total,
+        totalCost: 0,
+        totalProfit: ficha.total,
+        notes: `Pedido ${ficha.fichaNumber} — ${ficha.clientName}${detalle ? ` (${detalle})` : ""}`,
+        createdAt: ficha.deliveredAt ?? new Date(),
+      },
+    });
+  } else if (!delivered && existing) {
+    await prisma.sale.delete({ where: { id: existing.id } });
+  }
+}
+
 router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = fichaSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -71,10 +99,12 @@ router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Prom
     where: { id: req.params.id },
     data: toData(parsed.data as z.infer<typeof fichaSchema>) as never,
   });
+  await syncSaleForFicha(ficha.id);
   res.json(ficha);
 });
 
 router.delete("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  await prisma.sale.deleteMany({ where: { fichaId: req.params.id } });
   await prisma.fichaPedido.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 });

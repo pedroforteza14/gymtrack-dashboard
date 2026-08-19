@@ -72,13 +72,13 @@ export default function Fichas() {
       };
       return editId ? api.put(`/fichas/${editId}`, payload) : api.post("/fichas", payload);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success(editId ? "Ficha actualizada" : "Ficha creada"); close(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); qc.invalidateQueries({ queryKey: ["sales"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success(editId ? "Ficha actualizada" : "Ficha creada"); close(); },
     onError: (e: any) => setErr(e.response?.data?.error?.formErrors?.join(", ") || "Error al guardar"),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/fichas/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success("Ficha eliminada"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); qc.invalidateQueries({ queryKey: ["sales"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Ficha eliminada"); },
   });
 
   function openCreate() { setForm(empty); setEditId(null); setErr(""); setModalOpen(true); }

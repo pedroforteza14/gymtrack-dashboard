@@ -59,7 +59,11 @@ export default function Produccion() {
       return { prev };
     },
     onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(["fichas"], ctx.prev); },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["fichas"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["fichas"] });
+      qc.invalidateQueries({ queryKey: ["sales"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 
   function move(f: Ficha, stage: StageKey) {
@@ -78,6 +82,24 @@ export default function Produccion() {
         <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Factory size={24} /> Producción</h1>
         <p className="text-gray-400 text-sm mt-1">Arrastrá las fichas entre columnas para ir marcando el avance del taller</p>
       </div>
+
+      {/* Resumen */}
+      {!isLoading && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="card p-4">
+            <p className="text-xs text-gray-500 mb-1">En producción</p>
+            <p className="text-2xl font-bold text-white">{fichas.filter((f) => !f.deliveredAt).length}</p>
+          </div>
+          <div className="card p-4">
+            <p className="text-xs text-gray-500 mb-1">Entregados</p>
+            <p className="text-2xl font-bold text-green-400">{fichas.filter((f) => f.deliveredAt).length}</p>
+          </div>
+          <div className="card p-4">
+            <p className="text-xs text-gray-500 mb-1">Facturado (entregados)</p>
+            <p className="text-2xl font-bold text-white">{currency(fichas.filter((f) => f.deliveredAt).reduce((s, f) => s + Number(f.total), 0))}</p>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="card p-12 text-center text-gray-500">Cargando...</div>

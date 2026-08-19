@@ -118,6 +118,7 @@ model Sale {
   client        Client?    @relation(fields: [clientId], references: [id])
   notes         String?
   meliOrderId   String?    @unique
+  fichaId       String?    @unique
   paymentMethod String?
   paymentStatus String     @default("PAID")
   pendingAmount Decimal?   @db.Decimal(10, 2)
