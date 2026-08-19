@@ -4,8 +4,10 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, X, Search, Loader2, Upload, ImageIcon } from "lucide-react";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency } from "../lib/format";
+import { SkeletonCards } from "../components/Skeleton";
 
 interface Product {
   id: string; name: string; sku: string; description?: string;
@@ -64,12 +66,12 @@ export default function Products() {
       }
       return editing ? api.put(`/products/${editing.id}`, payload) : api.post("/products", payload);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); closeModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success(editing ? "Producto actualizado" : "Producto creado"); closeModal(); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/products/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Producto eliminado"); },
   });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
@@ -146,7 +148,7 @@ export default function Products() {
 
       {/* Card grid */}
       {isLoading ? (
-        <div className="card p-12 text-center text-gray-500">Cargando...</div>
+        <SkeletonCards count={8} />
       ) : filtered.length === 0 ? (
         <div className="card p-12 text-center text-gray-500">Sin productos</div>
       ) : (

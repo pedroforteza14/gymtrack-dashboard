@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 import {
@@ -58,7 +59,7 @@ export default function Quotes() {
 
   const createMut = useMutation({
     mutationFn: () => api.post("/quotes", { clientId: clientId || undefined, items, notes, validDays }).then((r) => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); resetForm(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Presupuesto creado"); resetForm(); },
   });
 
   const statusMut = useMutation({
@@ -69,13 +70,13 @@ export default function Quotes() {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/quotes/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["quotes"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Presupuesto eliminado"); },
   });
 
   const notesMut = useMutation({
     mutationFn: ({ id, notes }: { id: string; notes: string }) =>
       api.put(`/quotes/${id}/notes`, { notes }).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["quotes"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Nota guardada"); },
   });
 
   const navigate = useNavigate();
@@ -88,7 +89,7 @@ export default function Quotes() {
       deposit: 0,
       observations: q.notes || undefined,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); navigate("/fichas"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success("Convertido a ficha de pedido ✓"); navigate("/fichas"); },
   });
 
   const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setItems([]); };

@@ -5,6 +5,8 @@ import {
 import { TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Link2, CheckCircle2 } from "lucide-react";
 import { api } from "../lib/api";
 import { currency, pct, dateShort } from "../lib/format";
+import CountUp from "../components/CountUp";
+import { SkeletonStats, Skeleton } from "../components/Skeleton";
 
 interface DashboardData {
   thisMonth: { revenue: number; profit: number; cost: number; salesCount: number; margin: number };
@@ -17,7 +19,7 @@ interface DashboardData {
 }
 
 function StatCard({ label, value, sub, icon: Icon, trend, color = "blue" }: {
-  label: string; value: string; sub?: string; icon: React.ElementType; trend?: number; color?: string;
+  label: string; value: React.ReactNode; sub?: string; icon: React.ElementType; trend?: number; color?: string;
 }) {
   const colors: Record<string, string> = {
     blue: "bg-white/10 text-white border-white/20",
@@ -98,8 +100,16 @@ export default function Dashboard() {
 
   if (isLoading || !data) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-gray-400">Cargando dashboard...</div>
+      <div className="p-8 space-y-6">
+        <div>
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-3 w-64 mt-2" />
+        </div>
+        <SkeletonStats count={4} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-64 lg:col-span-2" />
+          <Skeleton className="h-64" />
+        </div>
       </div>
     );
   }
@@ -122,7 +132,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Ingresos del mes"
-          value={currency(data.thisMonth.revenue)}
+          value={<CountUp value={data.thisMonth.revenue} format={currency} />}
           icon={DollarSign}
           color="blue"
           trend={pctChange(data.thisMonth.revenue, data.lastMonth.revenue)}
@@ -130,7 +140,7 @@ export default function Dashboard() {
         />
         <StatCard
           label="Ganancia del mes"
-          value={currency(data.thisMonth.profit)}
+          value={<CountUp value={data.thisMonth.profit} format={currency} />}
           icon={TrendingUp}
           color="green"
           trend={pctChange(data.thisMonth.profit, data.lastMonth.profit)}
@@ -138,7 +148,7 @@ export default function Dashboard() {
         />
         <StatCard
           label="Ventas registradas"
-          value={String(data.thisMonth.salesCount)}
+          value={<CountUp value={data.thisMonth.salesCount} />}
           icon={ShoppingCart}
           color="yellow"
           trend={pctChange(data.thisMonth.salesCount, data.lastMonth.salesCount)}
@@ -146,7 +156,7 @@ export default function Dashboard() {
         />
         <StatCard
           label="Productos en catálogo"
-          value={String(data.totalProducts)}
+          value={<CountUp value={data.totalProducts} />}
           icon={Package}
           color="blue"
           sub="activos"

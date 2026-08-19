@@ -4,8 +4,10 @@ import {
   Wallet, Plus, X, Pencil, Trash2, TrendingUp, TrendingDown,
   ShoppingCart, Loader2, CreditCard,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency } from "../lib/format";
+import CountUp from "../components/CountUp";
 
 interface Expense {
   id: string;
@@ -73,6 +75,7 @@ export default function Expenses() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["expenses-summary"] });
+      toast.success(modal === "edit" ? "Gasto actualizado" : "Gasto cargado");
       closeModal();
     },
   });
@@ -82,6 +85,7 @@ export default function Expenses() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["expenses-summary"] });
+      toast.success("Gasto eliminado");
     },
   });
 
@@ -138,7 +142,7 @@ export default function Expenses() {
             <div className="p-2 rounded-lg bg-green-500/10 text-green-400"><ShoppingCart size={18} /></div>
             <span className="text-gray-400 text-sm">Ventas del mes</span>
           </div>
-          <p className="text-2xl font-bold text-white">{currency(summary?.totalSales ?? 0)}</p>
+          <p className="text-2xl font-bold text-white"><CountUp value={summary?.totalSales ?? 0} format={currency} /></p>
           <p className="text-xs text-gray-500 mt-1">{summary?.salesCount ?? 0} ventas registradas</p>
         </div>
         <div className="card p-5">
@@ -146,7 +150,7 @@ export default function Expenses() {
             <div className="p-2 rounded-lg bg-red-500/10 text-red-400"><TrendingDown size={18} /></div>
             <span className="text-gray-400 text-sm">Gastos empresa</span>
           </div>
-          <p className="text-2xl font-bold text-white">{currency(summary?.companyExpenses ?? 0)}</p>
+          <p className="text-2xl font-bold text-white"><CountUp value={summary?.companyExpenses ?? 0} format={currency} /></p>
           <p className="text-xs text-gray-500 mt-1">Del negocio</p>
         </div>
         <div className="card p-5">
@@ -154,7 +158,7 @@ export default function Expenses() {
             <div className="p-2 rounded-lg bg-gray-500/10 text-gray-300"><Wallet size={18} /></div>
             <span className="text-gray-400 text-sm">Gastos personales</span>
           </div>
-          <p className="text-2xl font-bold text-white">{currency(summary?.personalExpenses ?? 0)}</p>
+          <p className="text-2xl font-bold text-white"><CountUp value={summary?.personalExpenses ?? 0} format={currency} /></p>
           <p className="text-xs text-gray-500 mt-1">No afectan el balance</p>
         </div>
         <div className={`card p-5 border ${balance >= 0 ? "border-green-500/30" : "border-red-500/30"}`}>
@@ -164,7 +168,7 @@ export default function Expenses() {
             </div>
             <span className="text-gray-400 text-sm">Balance del negocio</span>
           </div>
-          <p className={`text-2xl font-bold ${balance >= 0 ? "text-green-400" : "text-red-400"}`}>{currency(balance)}</p>
+          <p className={`text-2xl font-bold ${balance >= 0 ? "text-green-400" : "text-red-400"}`}><CountUp value={balance} format={currency} /></p>
           <p className="text-xs text-gray-500 mt-1">Ventas − Gastos empresa</p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 import { Users, Plus, Search, Phone, Mail, MapPin, X, Pencil, Trash2, ShoppingCart } from "lucide-react";
@@ -34,17 +35,17 @@ export default function Clients() {
 
   const createMut = useMutation({
     mutationFn: (data: typeof emptyForm) => api.post("/clients", data).then((r) => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clients"] }); setModal(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clients"] }); toast.success("Cliente creado"); setModal(null); },
   });
 
   const updateMut = useMutation({
     mutationFn: (data: typeof emptyForm) => api.put(`/clients/${selected!.id}`, data).then((r) => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clients"] }); setModal(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clients"] }); toast.success("Cliente actualizado"); setModal(null); },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/clients/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clients"] }); toast.success("Cliente eliminado"); },
   });
 
   const openCreate = () => { setForm(emptyForm); setModal("create"); };

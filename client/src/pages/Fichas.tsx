@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardList, Plus, X, Trash2, Download, Loader2, Pencil, User,
 } from "lucide-react";
+import toast from "react-hot-toast";
+import { Skeleton } from "../components/Skeleton";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 
@@ -70,13 +72,13 @@ export default function Fichas() {
       };
       return editId ? api.put(`/fichas/${editId}`, payload) : api.post("/fichas", payload);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); close(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success(editId ? "Ficha actualizada" : "Ficha creada"); close(); },
     onError: (e: any) => setErr(e.response?.data?.error?.formErrors?.join(", ") || "Error al guardar"),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/fichas/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fichas"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success("Ficha eliminada"); },
   });
 
   function openCreate() { setForm(empty); setEditId(null); setErr(""); setModalOpen(true); }
@@ -136,7 +138,11 @@ export default function Fichas() {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>{Array.from({ length: 7 }).map((_, c) => (
+                  <td key={c} className="px-4 py-4"><Skeleton className="h-4 w-full" /></td>
+                ))}</tr>
+              ))
             ) : fichas.length === 0 ? (
               <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Sin fichas cargadas. Tocá "Nueva ficha" para empezar.</td></tr>
             ) : fichas.map((f) => {

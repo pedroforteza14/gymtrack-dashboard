@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
+import { Toaster, toast } from "react-hot-toast";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -22,8 +23,21 @@ import CampaignCalendar from "./pages/CampaignCalendar";
 import GoogleAds from "./pages/GoogleAds";
 import { getRole, isAuthenticated } from "./lib/auth";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function errorMessage(err: any): string {
+  const e = err?.response?.data?.error;
+  if (typeof e === "string") return e;
+  if (e?.formErrors?.length) return e.formErrors.join(", ");
+  if (err?.response?.status === 413) return "El archivo es demasiado grande.";
+  return "Ocurrió un error. Probá de nuevo.";
+}
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
+  // Cualquier mutación que falle muestra un toast de error automáticamente
+  mutationCache: new MutationCache({
+    onError: (err) => toast.error(errorMessage(err)),
+  }),
 });
 
 // Redirige a la sección correcta según el rol
@@ -42,6 +56,15 @@ function RoleRoute({ role, children }: { role: "OWNER" | "MARKETING"; children: 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 2600,
+          style: { background: "#111827", color: "#f3f4f6", border: "1px solid #374151", fontSize: "14px" },
+          success: { iconTheme: { primary: "#22c55e", secondary: "#111827" } },
+          error: { iconTheme: { primary: "#ef4444", secondary: "#111827" } },
+        }}
+      />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

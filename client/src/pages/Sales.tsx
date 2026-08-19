@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User, Download } from "lucide-react";
+import toast from "react-hot-toast";
+import { Skeleton } from "../components/Skeleton";
 import { api } from "../lib/api";
 import { currency, pct, dateLong } from "../lib/format";
 import jsPDF from "jspdf";
@@ -106,6 +108,7 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Venta registrada 🎉");
       closeModal();
     },
     onError: (e: any) => setSaleError(e.response?.data?.error ?? "Error al crear venta"),
@@ -118,6 +121,7 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Venta anulada");
     },
   });
 
@@ -274,7 +278,11 @@ export default function Sales() {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={10} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i}>{Array.from({ length: 10 }).map((_, c) => (
+                  <td key={c} className="px-4 py-4"><Skeleton className="h-4 w-full" /></td>
+                ))}</tr>
+              ))
             ) : sales.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-6 py-12 text-center text-gray-500">

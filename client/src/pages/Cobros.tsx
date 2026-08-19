@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Coins, MessageCircle, CheckCircle2, Phone } from "lucide-react";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
+import CountUp from "../components/CountUp";
+import { Skeleton } from "../components/Skeleton";
 
 interface Ficha {
   id: string; fichaNumber: string; clientName: string; clientPhone?: string;
@@ -34,7 +37,7 @@ export default function Cobros() {
 
   const cobradoMut = useMutation({
     mutationFn: (f: Ficha) => api.put(`/fichas/${f.id}`, { deposit: Number(f.total) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fichas"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success("Saldo cobrado 💰"); },
   });
 
   const pendientes = fichas
@@ -64,14 +67,14 @@ export default function Cobros() {
             <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-400"><Coins size={18} /></div>
             <span className="text-gray-400 text-sm">Total por cobrar</span>
           </div>
-          <p className="text-3xl font-bold text-white">{currency(totalPorCobrar)}</p>
+          <p className="text-3xl font-bold text-white"><CountUp value={totalPorCobrar} format={currency} /></p>
         </div>
         <div className="card p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-white/10 text-white"><MessageCircle size={18} /></div>
             <span className="text-gray-400 text-sm">Cuentas con saldo</span>
           </div>
-          <p className="text-3xl font-bold text-white">{pendientes.length}</p>
+          <p className="text-3xl font-bold text-white"><CountUp value={pendientes.length} /></p>
         </div>
       </div>
 
@@ -91,7 +94,13 @@ export default function Cobros() {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 7 }).map((_, c) => (
+                    <td key={c} className="px-4 py-4"><Skeleton className="h-4 w-full" /></td>
+                  ))}
+                </tr>
+              ))
             ) : pendientes.length === 0 ? (
               <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">🎉 No hay saldos pendientes de cobro</td></tr>
             ) : pendientes.map((f) => (

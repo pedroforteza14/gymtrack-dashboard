@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Ruler, Plus, X, Trash2, FileText, Loader2, Upload, User, Users, Download,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { dateShort } from "../lib/format";
 
@@ -62,7 +63,7 @@ export default function Planos() {
       }
       return api.post("/planos", { title, notes: notes || undefined, employeeId: employeeId || undefined, fileData, fileName, fileType });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["planos"] }); closeModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["planos"] }); toast.success("Plano guardado"); closeModal(); },
     onError: (e: any) => setErr(e.response?.data?.error ?? "Error al guardar"),
   });
 
@@ -76,7 +77,7 @@ export default function Planos() {
   });
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/planos/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["planos"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["planos"] }); toast.success("Plano eliminado"); },
   });
   const addEmpMut = useMutation({
     mutationFn: (name: string) => api.post("/planos/employees", { name }),
