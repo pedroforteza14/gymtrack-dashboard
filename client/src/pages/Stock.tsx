@@ -64,7 +64,7 @@ export default function Stock() {
   const movements: Movement[] = movData?.movements ?? [];
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Stock</h1>
@@ -95,7 +95,7 @@ export default function Stock() {
       )}
 
       {/* Inventory table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="px-6 py-4 border-b border-gray-800">
           <h3 className="font-semibold text-white">Inventario actual</h3>
         </div>
@@ -144,7 +144,7 @@ export default function Stock() {
       </div>
 
       {/* Movements */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="px-6 py-4 border-b border-gray-800">
           <h3 className="font-semibold text-white">Últimos movimientos</h3>
         </div>

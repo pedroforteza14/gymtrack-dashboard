@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Link, useLocation, Navigate } from "react-router-dom";
 import {
-  LayoutDashboard, Package, ShoppingCart, LogOut,
+  LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X,
   TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory,
 } from "lucide-react";
 import { logout, isAuthenticated, getRole } from "../lib/auth";
@@ -35,6 +36,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { data: user } = useQuery({ queryKey: ["me"], queryFn: getMe, retry: false });
   const role = getRole();
+  const [open, setOpen] = useState(false);
 
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
 
@@ -43,10 +45,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
+      {/* Top bar (solo mobile) */}
+      <header className="md:hidden fixed top-0 inset-x-0 h-14 bg-gray-900 border-b border-gray-800 flex items-center gap-3 px-4 z-30">
+        <button onClick={() => setOpen(true)} className="text-gray-300 hover:text-white p-1 -ml-1" aria-label="Abrir menú">
+          <Menu size={22} />
+        </button>
+        {isMarketing ? (
+          <span className="font-bold text-white">AdsTrack</span>
+        ) : (
+          <img src={logo} alt="The Promise Machine" className="h-6 object-contain" />
+        )}
+      </header>
+
+      {/* Backdrop (mobile, cuando el cajón está abierto) */}
+      {open && <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setOpen(false)} />}
+
+      {/* Sidebar (cajón en mobile, fijo en desktop) */}
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-50 w-64 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col
+          transform transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+      >
         {/* Logo */}
-        <div className="px-6 py-5 border-b border-gray-800 flex items-center animate-logo">
+        <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between animate-logo">
           {isMarketing ? (
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white">
@@ -60,6 +80,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ) : (
             <img src={logo} alt="The Promise Machine" className="h-8 object-contain" />
           )}
+          {/* Cerrar (solo mobile) */}
+          <button onClick={() => setOpen(false)} className="md:hidden text-gray-400 hover:text-white p-1" aria-label="Cerrar menú">
+            <X size={20} />
+          </button>
         </div>
 
         {/* Rol badge */}
@@ -79,6 +103,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Link
                 key={to}
                 to={to}
+                onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   active
                     ? "bg-white text-gray-950"
@@ -116,7 +141,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main */}
-      <main key={location.pathname} className="flex-1 overflow-y-auto bg-gray-950 animate-page">
+      <main key={location.pathname} className="flex-1 overflow-y-auto bg-gray-950 animate-page pt-14 md:pt-0">
         {children}
       </main>
     </div>

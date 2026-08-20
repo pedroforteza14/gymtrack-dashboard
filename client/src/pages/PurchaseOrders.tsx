@@ -65,7 +65,7 @@ export default function PurchaseOrders() {
   const totalPreview = watchedItems.reduce((s, i) => s + (Number(i.unitCost) || 0) * (Number(i.quantity) || 0), 0);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2"><ShoppingBag size={24} /> Órdenes de compra</h1>
@@ -76,7 +76,7 @@ export default function PurchaseOrders() {
         </button>
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">

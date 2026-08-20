@@ -181,7 +181,7 @@ export default function Sales() {
   const totalPages    = Math.ceil(total / 15);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -260,7 +260,7 @@ export default function Sales() {
       )}
 
       {/* Tabla */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">

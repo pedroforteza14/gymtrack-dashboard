@@ -114,7 +114,7 @@ export default function Products() {
   );
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Productos</h1>
@@ -154,7 +154,7 @@ export default function Products() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((p) => (
-            <div key={p.id} className="card p-0 overflow-hidden group flex flex-col">
+            <div key={p.id} className="card p-0 overflow-x-auto group flex flex-col">
               {/* Image */}
               <div className="aspect-square bg-gray-800/50 flex items-center justify-center overflow-hidden relative">
                 {p.imageName ? (

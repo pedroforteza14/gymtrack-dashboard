@@ -114,7 +114,7 @@ export default function Fichas() {
   const saldo = (Number(form.total) || 0) - (Number(form.deposit) || 0);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2"><ClipboardList size={24} /> Fichas de pedido</h1>
@@ -123,7 +123,7 @@ export default function Fichas() {
         <button onClick={openCreate} className="btn-primary"><Plus size={16} /> Nueva ficha</button>
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">

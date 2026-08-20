@@ -113,7 +113,7 @@ export default function Expenses() {
   const filteredExpenses = expenses.filter((e) => typeFilter === "TODOS" || e.expenseType === typeFilter);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -190,7 +190,7 @@ export default function Expenses() {
       </div>
 
       {/* Expenses table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-wrap gap-3">
           <h3 className="font-semibold text-white">Detalle de gastos</h3>
           <div className="flex gap-1 bg-gray-800/60 rounded-lg p-1">

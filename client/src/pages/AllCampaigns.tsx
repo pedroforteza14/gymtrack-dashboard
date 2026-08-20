@@ -60,7 +60,7 @@ export default function AllCampaigns() {
   const activeCampaigns = filtered.filter((c) => c.status === "ACTIVE").length;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Campañas</h1>
@@ -128,7 +128,7 @@ export default function AllCampaigns() {
       </div>
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">

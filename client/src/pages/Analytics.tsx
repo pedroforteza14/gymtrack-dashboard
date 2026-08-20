@@ -64,7 +64,7 @@ export default function Analytics() {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <BarChart3 size={24} /> Analytics

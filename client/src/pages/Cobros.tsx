@@ -54,7 +54,7 @@ export default function Cobros() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Coins size={24} /> Cobros pendientes</h1>
         <p className="text-gray-400 text-sm mt-1">Saldos por cobrar de las fichas de pedido</p>
@@ -79,7 +79,7 @@ export default function Cobros() {
       </div>
 
       {/* Tabla */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">
