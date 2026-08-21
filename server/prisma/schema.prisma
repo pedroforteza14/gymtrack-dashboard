@@ -73,7 +73,7 @@ model Category {
 }
 
 model Client {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   email     String?
   phone     String?
@@ -81,8 +81,9 @@ model Client {
   notes     String?
   sales     Sale[]
   quotes    Quote[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Product {
@@ -106,6 +107,7 @@ model Product {
   quoteItems         QuoteItem[]
   stockMovements     StockMovement[]
   priceHistory       PriceHistory[]
+  materials          Material[]
   purchaseOrderItems PurchaseOrderItem[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -126,6 +128,7 @@ model Sale {
   totalCost     Decimal    @db.Decimal(10, 2)
   totalRevenue  Decimal    @db.Decimal(10, 2)
   totalProfit   Decimal    @db.Decimal(10, 2)
+  deletedAt     DateTime?
   createdAt     DateTime   @default(now())
 }
 
@@ -162,6 +165,7 @@ model Quote {
   validDays   Int         @default(15)
   status      QuoteStatus @default(DRAFT)
   totalAmount Decimal     @db.Decimal(10, 2)
+  deletedAt   DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
@@ -257,16 +261,17 @@ model GoogleAdsToken {
 }
 
 model Expense {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   date          DateTime
   concept       String
-  amount        Decimal  @db.Decimal(12, 2)
-  paymentSource String   @default("EFECTIVO_MP")
-  expenseType   String   @default("EMPRESA")
+  amount        Decimal   @db.Decimal(12, 2)
+  paymentSource String    @default("EFECTIVO_MP")
+  expenseType   String    @default("EMPRESA")
   category      String?
   notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([date])
 }
@@ -325,6 +330,58 @@ model FichaPedido {
   packedBy       String?
   deliveredAt    DateTime?
   deliveredBy    String?
+  payments       Payment[]
+  deletedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// Pagos parciales de una ficha (seña, cuotas, saldo final)
+model Payment {
+  id        String      @id @default(cuid())
+  fichaId   String
+  ficha     FichaPedido @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  amount    Decimal     @db.Decimal(12, 2)
+  date      DateTime    @default(now())
+  method    String?
+  notes     String?
+  createdAt DateTime    @default(now())
+
+  @@index([fichaId])
+}
+
+// Materiales que lleva cada producto (para costo real de fabricación)
+model Material {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Decimal  @default(1) @db.Decimal(10, 2)
+  unit      String?
+  unitCost  Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// Archivos adjuntos (fichas, clientes)
+model Attachment {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  fileName   String
+  fileType   String?
+  fileData   String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// Notas rápidas / pendientes del dueño
+model Note {
+  id        String   @id @default(cuid())
+  content   String
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

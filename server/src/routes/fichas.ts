@@ -46,14 +46,65 @@ function toData(input: Record<string, unknown>) {
 }
 
 router.get("/", authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
-  const fichas = await prisma.fichaPedido.findMany({ orderBy: { createdAt: "desc" } });
+  const fichas = await prisma.fichaPedido.findMany({
+    where: { deletedAt: null },
+    include: { payments: { orderBy: { date: "asc" } } },
+    orderBy: { createdAt: "desc" },
+  });
   res.json(fichas);
 });
 
 router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  const ficha = await prisma.fichaPedido.findUnique({ where: { id: req.params.id } });
+  const ficha = await prisma.fichaPedido.findUnique({
+    where: { id: req.params.id },
+    include: { payments: { orderBy: { date: "asc" } } },
+  });
   if (!ficha) { res.status(404).json({ error: "Ficha no encontrada" }); return; }
   res.json(ficha);
+});
+
+// ── Pagos parciales ──────────────────────────────────────
+// Recalcula `deposit` de la ficha como la suma de sus pagos
+async function recalcDeposit(fichaId: string): Promise<void> {
+  const pagos = await prisma.payment.findMany({ where: { fichaId }, select: { amount: true } });
+  const total = pagos.reduce((s, p) => s + Number(p.amount), 0);
+  await prisma.fichaPedido.update({ where: { id: fichaId }, data: { deposit: total } });
+}
+
+router.get("/:id/payments", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const payments = await prisma.payment.findMany({ where: { fichaId: req.params.id }, orderBy: { date: "asc" } });
+  res.json(payments);
+});
+
+router.post("/:id/payments", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = z.object({
+    amount: z.number().positive(),
+    date: z.string().optional(),
+    method: z.enum(["EFECTIVO", "TRANSFERENCIA", "TARJETA", "OTRO"]).optional(),
+    notes: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const ficha = await prisma.fichaPedido.findUnique({ where: { id: req.params.id } });
+  if (!ficha) { res.status(404).json({ error: "Ficha no encontrada" }); return; }
+
+  const payment = await prisma.payment.create({
+    data: {
+      fichaId: req.params.id,
+      amount: parsed.data.amount,
+      date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      method: parsed.data.method ?? null,
+      notes: parsed.data.notes ?? null,
+    },
+  });
+  await recalcDeposit(req.params.id);
+  res.status(201).json(payment);
+});
+
+router.delete("/:id/payments/:paymentId", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  await prisma.payment.delete({ where: { id: req.params.paymentId } });
+  await recalcDeposit(req.params.id);
+  res.json({ ok: true });
 });
 
 router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {

@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { generateListaPreciosPDF } from "../lib/listaPreciosPdf";
 
 const router = Router();
 router.use(authMiddleware);
@@ -118,6 +119,63 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     console.error("Error editando producto:", err);
     res.status(500).json({ error: "No se pudo guardar el producto" });
   }
+});
+
+// Lista de precios en PDF (token por query para abrir en pestaña nueva)
+router.get("/lista-precios/pdf", async (req: AuthRequest, res: Response): Promise<void> => {
+  const { line, categoryId } = req.query as Record<string, string>;
+  const where: Record<string, unknown> = { active: true };
+  if (line) where.line = line;
+  if (categoryId) where.categoryId = categoryId;
+
+  const products = await prisma.product.findMany({
+    where,
+    select: { name: true, sku: true, line: true, sellPrice: true, category: { select: { name: true } } },
+    orderBy: [{ line: "asc" }, { name: "asc" }],
+  });
+
+  generateListaPreciosPDF(
+    products.map((p) => ({
+      name: p.name, sku: p.sku, line: p.line,
+      category: p.category?.name ?? null, sellPrice: Number(p.sellPrice),
+    })),
+    res
+  );
+});
+
+// Actualización masiva de precios por porcentaje
+router.post("/bulk-price", async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = z.object({
+    percent: z.number().min(-90).max(500),
+    line: z.string().optional(),        // filtrar por línea
+    categoryId: z.string().optional(),  // o por categoría
+    round: z.number().int().min(0).default(1000), // redondear a múltiplos de
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { percent, line, categoryId, round } = parsed.data;
+
+  const where: Record<string, unknown> = { active: true };
+  if (line) where.line = line;
+  if (categoryId) where.categoryId = categoryId;
+
+  const products = await prisma.product.findMany({ where, select: { id: true, sellPrice: true } });
+  const factor = 1 + percent / 100;
+
+  let updated = 0;
+  for (const p of products) {
+    const old = Number(p.sellPrice);
+    let nuevo = old * factor;
+    if (round > 0) nuevo = Math.round(nuevo / round) * round;
+    if (nuevo === old) continue;
+    await prisma.$transaction([
+      prisma.product.update({ where: { id: p.id }, data: { sellPrice: nuevo } }),
+      prisma.priceHistory.create({
+        data: { productId: p.id, oldPrice: old, newPrice: nuevo, note: `Ajuste masivo ${percent > 0 ? "+" : ""}${percent}%` },
+      }),
+    ]);
+    updated++;
+  }
+  res.json({ ok: true, updated, total: products.length });
 });
 
 router.get("/:id/price-history", async (req: AuthRequest, res: Response): Promise<void> => {

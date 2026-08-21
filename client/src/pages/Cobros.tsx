@@ -1,16 +1,24 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Coins, MessageCircle, CheckCircle2, Phone } from "lucide-react";
+import { Coins, MessageCircle, CheckCircle2, Phone, Plus, X, Trash2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 import CountUp from "../components/CountUp";
 import { Skeleton } from "../components/Skeleton";
 
+interface Payment { id: string; amount: number; date: string; method?: string; notes?: string; }
 interface Ficha {
   id: string; fichaNumber: string; clientName: string; clientPhone?: string;
   total: number; deposit: number; estimatedDate?: string;
   fabricatedAt?: string; packedAt?: string; deliveredAt?: string;
+  payments?: Payment[];
 }
+
+const METHODS = ["EFECTIVO", "TRANSFERENCIA", "TARJETA", "OTRO"] as const;
+const METHOD_LABEL: Record<string, string> = {
+  EFECTIVO: "Efectivo", TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", OTRO: "Otro",
+};
 
 function statusLabel(f: Ficha): string {
   if (f.deliveredAt) return "Entregado";
@@ -30,15 +38,43 @@ function waLink(phone: string | undefined, message: string): string | null {
 
 export default function Cobros() {
   const qc = useQueryClient();
+  const [payFicha, setPayFicha] = useState<(Ficha & { saldo: number }) | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState<string>("EFECTIVO");
+  const [payNotes, setPayNotes] = useState("");
+
   const { data: fichas = [], isLoading } = useQuery<Ficha[]>({
     queryKey: ["fichas"],
     queryFn: () => api.get("/fichas").then((r) => r.data),
   });
 
-  const cobradoMut = useMutation({
-    mutationFn: (f: Ficha) => api.put(`/fichas/${f.id}`, { deposit: Number(f.total) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fichas"] }); toast.success("Saldo cobrado 💰"); },
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["fichas"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const addPayMut = useMutation({
+    mutationFn: () => api.post(`/fichas/${payFicha!.id}/payments`, {
+      amount: Number(payAmount),
+      method: payMethod,
+      notes: payNotes || undefined,
+    }),
+    onSuccess: () => { refresh(); toast.success("Pago registrado 💰"); closePay(); },
   });
+
+  const delPayMut = useMutation({
+    mutationFn: ({ fichaId, paymentId }: { fichaId: string; paymentId: string }) =>
+      api.delete(`/fichas/${fichaId}/payments/${paymentId}`),
+    onSuccess: () => { refresh(); toast.success("Pago eliminado"); },
+  });
+
+  function openPay(f: Ficha & { saldo: number }, full = false) {
+    setPayFicha(f);
+    setPayAmount(full ? String(f.saldo) : "");
+    setPayMethod("EFECTIVO");
+    setPayNotes("");
+  }
+  function closePay() { setPayFicha(null); setPayAmount(""); setPayNotes(""); }
 
   const pendientes = fichas
     .map((f) => ({ ...f, saldo: Number(f.total) - Number(f.deposit) }))
@@ -115,7 +151,12 @@ export default function Cobros() {
                 </td>
                 <td className="px-4 py-4"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/60 text-gray-300">{statusLabel(f)}</span></td>
                 <td className="px-4 py-4 text-right text-gray-300">{currency(Number(f.total))}</td>
-                <td className="px-4 py-4 text-right text-gray-400">{currency(Number(f.deposit))}</td>
+                <td className="px-4 py-4 text-right">
+                  <p className="text-gray-400">{currency(Number(f.deposit))}</p>
+                  {(f.payments?.length ?? 0) > 0 && (
+                    <p className="text-[10px] text-gray-600">{f.payments!.length} pago{f.payments!.length !== 1 ? "s" : ""}</p>
+                  )}
+                </td>
                 <td className="px-4 py-4 text-right font-bold text-yellow-400">{currency(f.saldo)}</td>
                 <td className="px-4 py-4">
                   <div className="flex items-center gap-1.5 justify-end">
@@ -128,11 +169,18 @@ export default function Cobros() {
                       <MessageCircle size={13} /> WhatsApp
                     </button>
                     <button
-                      onClick={() => { if (confirm(`¿Marcar como cobrado el saldo de ${currency(f.saldo)} de ${f.fichaNumber}?`)) cobradoMut.mutate(f); }}
-                      title="Marcar saldo cobrado"
+                      onClick={() => openPay(f)}
+                      title="Registrar un pago parcial"
                       className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                     >
-                      <CheckCircle2 size={13} /> Cobrado
+                      <Plus size={13} /> Pago
+                    </button>
+                    <button
+                      onClick={() => openPay(f, true)}
+                      title="Cobrar el saldo completo"
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold bg-white text-gray-950 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      <CheckCircle2 size={13} /> Saldar
                     </button>
                   </div>
                 </td>
@@ -141,6 +189,107 @@ export default function Cobros() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal de pago */}
+      {payFicha && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div>
+                <h2 className="font-semibold text-white">Registrar pago</h2>
+                <p className="text-xs text-gray-500">{payFicha.fichaNumber} · {payFicha.clientName}</p>
+              </div>
+              <button onClick={closePay} className="text-gray-400 hover:text-gray-100"><X size={20} /></button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Resumen */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-gray-800/60 rounded-lg p-2">
+                  <p className="text-[10px] text-gray-500">Total</p>
+                  <p className="text-sm font-bold text-white">{currency(Number(payFicha.total))}</p>
+                </div>
+                <div className="bg-gray-800/60 rounded-lg p-2">
+                  <p className="text-[10px] text-gray-500">Pagado</p>
+                  <p className="text-sm font-bold text-gray-300">{currency(Number(payFicha.deposit))}</p>
+                </div>
+                <div className="bg-gray-800/60 rounded-lg p-2">
+                  <p className="text-[10px] text-gray-500">Saldo</p>
+                  <p className="text-sm font-bold text-yellow-400">{currency(payFicha.saldo)}</p>
+                </div>
+              </div>
+
+              {/* Pagos anteriores */}
+              {(payFicha.payments?.length ?? 0) > 0 && (
+                <div>
+                  <label className="label">Pagos registrados</label>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {payFicha.payments!.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="text-white font-medium">{currency(Number(p.amount))}</p>
+                          <p className="text-[11px] text-gray-500">
+                            {dateShort(p.date)}{p.method ? ` · ${METHOD_LABEL[p.method] ?? p.method}` : ""}{p.notes ? ` · ${p.notes}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => { if (confirm(`¿Eliminar el pago de ${currency(Number(p.amount))}?`)) delPayMut.mutate({ fichaId: payFicha.id, paymentId: p.id }); }}
+                          className="text-gray-500 hover:text-red-400 flex-shrink-0"><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Nuevo pago */}
+              <div>
+                <label className="label">Monto del pago</label>
+                <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+                  className="input" placeholder="0" autoFocus />
+                <div className="flex gap-1.5 mt-2">
+                  <button onClick={() => setPayAmount(String(payFicha.saldo))}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700">
+                    Todo ({currency(payFicha.saldo)})
+                  </button>
+                  <button onClick={() => setPayAmount(String(Math.round(payFicha.saldo / 2)))}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700">
+                    Mitad
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Método</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {METHODS.map((m) => (
+                    <button key={m} onClick={() => setPayMethod(m)}
+                      className={`py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        payMethod === m ? "bg-white text-gray-950 border-white" : "bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-500"
+                      }`}>
+                      {METHOD_LABEL[m]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Nota (opcional)</label>
+                <input value={payNotes} onChange={(e) => setPayNotes(e.target.value)} className="input" placeholder="Ej: segunda cuota" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 px-6 pb-6">
+              <button onClick={closePay} className="btn-secondary flex-1 justify-center">Cancelar</button>
+              <button onClick={() => addPayMut.mutate()}
+                disabled={!payAmount || Number(payAmount) <= 0 || addPayMut.isPending}
+                className="btn-primary flex-1 justify-center">
+                {addPayMut.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                Registrar pago
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

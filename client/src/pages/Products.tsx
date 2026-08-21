@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2, X, Search, Loader2, Upload, ImageIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search, Loader2, Upload, ImageIcon, FileText, Percent } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency } from "../lib/format";
@@ -46,6 +46,9 @@ export default function Products() {
   const [imgPreview, setImgPreview] = useState<string | null>(null); // data URL
   const [imgMeta, setImgMeta] = useState<{ name: string; type: string } | null>(null);
   const [imgErr, setImgErr] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkPercent, setBulkPercent] = useState("");
+  const [bulkLine, setBulkLine] = useState("");
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["products"],
@@ -73,6 +76,25 @@ export default function Products() {
     mutationFn: (id: string) => api.delete(`/products/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Producto eliminado"); },
   });
+
+  const bulkMutation = useMutation({
+    mutationFn: () => api.post("/products/bulk-price", {
+      percent: Number(bulkPercent),
+      line: bulkLine || undefined,
+      round: 1000,
+    }).then((r) => r.data),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`${d.updated} precio${d.updated !== 1 ? "s" : ""} actualizado${d.updated !== 1 ? "s" : ""}`);
+      setBulkOpen(false);
+    },
+  });
+
+  function openListaPrecios() {
+    const token = localStorage.getItem("token");
+    const q = lineFilter ? `&line=${encodeURIComponent(lineFilter)}` : "";
+    window.open(`${api.defaults.baseURL}/products/lista-precios/pdf?token=${token}${q}`, "_blank");
+  }
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,14 +137,22 @@ export default function Products() {
 
   return (
     <div className="p-4 md:p-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Productos</h1>
           <p className="text-gray-400 text-sm mt-1">{filtered.length} productos activos</p>
         </div>
-        <button onClick={openCreate} className="btn-primary">
-          <Plus size={16} /> Nuevo producto
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={openListaPrecios} className="btn-secondary" title="Lista de precios en PDF">
+            <FileText size={15} /> Lista de precios
+          </button>
+          <button onClick={() => { setBulkPercent(""); setBulkOpen(true); }} className="btn-secondary" title="Actualizar precios por porcentaje">
+            <Percent size={15} /> Ajustar precios
+          </button>
+          <button onClick={openCreate} className="btn-primary">
+            <Plus size={16} /> Nuevo producto
+          </button>
+        </div>
       </div>
 
       {/* Search + line filter */}
@@ -267,6 +297,70 @@ export default function Products() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ajuste masivo de precios */}
+      {bulkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <h2 className="font-semibold text-white flex items-center gap-2"><Percent size={18} /> Ajustar precios</h2>
+              <button onClick={() => setBulkOpen(false)} className="text-gray-400 hover:text-gray-100"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="label">Porcentaje de ajuste</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" step="0.1" value={bulkPercent} onChange={(e) => setBulkPercent(e.target.value)}
+                    className="input" placeholder="Ej: 15 para subir, -10 para bajar" autoFocus />
+                  <span className="text-gray-400 font-bold">%</span>
+                </div>
+                <div className="flex gap-1.5 mt-2">
+                  {[5, 10, 15, 20, 30].map((p) => (
+                    <button key={p} onClick={() => setBulkPercent(String(p))}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+                      +{p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Aplicar a</label>
+                <select value={bulkLine} onChange={(e) => setBulkLine(e.target.value)} className="input">
+                  <option value="">Todos los productos ({products.filter((p) => p.active).length})</option>
+                  {lines.map((l) => (
+                    <option key={l} value={l}>Solo línea {l} ({products.filter((p) => p.active && p.line === l).length})</option>
+                  ))}
+                </select>
+              </div>
+
+              {bulkPercent && !isNaN(Number(bulkPercent)) && (
+                <div className="bg-gray-800/60 rounded-lg p-3 text-sm">
+                  <p className="text-gray-400 text-xs mb-1">Ejemplo con un producto de {currency(500000)}:</p>
+                  <p className="text-white font-medium">
+                    {currency(500000)} → {currency(Math.round((500000 * (1 + Number(bulkPercent) / 100)) / 1000) * 1000)}
+                  </p>
+                  <p className="text-gray-500 text-xs mt-1">Los precios se redondean a múltiplos de $1.000</p>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500">
+                Se guarda el historial de cada cambio. Los costos no se modifican.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button onClick={() => setBulkOpen(false)} className="btn-secondary flex-1 justify-center">Cancelar</button>
+              <button
+                onClick={() => { if (confirm(`¿Aplicar ${Number(bulkPercent) > 0 ? "+" : ""}${bulkPercent}% a los precios?`)) bulkMutation.mutate(); }}
+                disabled={!bulkPercent || isNaN(Number(bulkPercent)) || bulkMutation.isPending}
+                className="btn-primary flex-1 justify-center">
+                {bulkMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                Aplicar
+              </button>
+            </div>
           </div>
         </div>
       )}
