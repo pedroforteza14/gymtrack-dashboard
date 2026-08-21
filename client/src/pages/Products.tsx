@@ -23,7 +23,7 @@ const numOptional = () => z.preprocess((v) => (v === "" || v === null || v === u
 
 const schema = z.object({
   name: z.string().min(1, "Requerido"),
-  sku: z.string().min(1, "Requerido"),
+  sku: z.string().optional(),
   description: z.string().optional(),
   categoryId: z.string().optional(),
   line: z.string().optional(),
@@ -221,8 +221,8 @@ export default function Products() {
                   {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name.message}</p>}
                 </div>
                 <div>
-                  <label className="label">SKU</label>
-                  <input {...register("sku")} className="input" placeholder="BAN-001" />
+                  <label className="label">SKU (opcional)</label>
+                  <input {...register("sku")} className="input" placeholder="Se genera solo si lo dejás vacío" />
                   {errors.sku && <p className="text-red-400 text-xs mt-1">{errors.sku.message}</p>}
                 </div>
                 <div>

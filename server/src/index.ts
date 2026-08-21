@@ -50,6 +50,16 @@ app.use("/api/fichas", fichasRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+// Manejador de errores de Express (evita que un error suelto tumbe la request)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Error no manejado:", err);
+  if (!res.headersSent) res.status(500).json({ error: "Error del servidor" });
+});
+
+// Red de seguridad: loguear en vez de crashear el proceso
+process.on("unhandledRejection", (reason) => console.error("unhandledRejection:", reason));
+process.on("uncaughtException", (err) => console.error("uncaughtException:", err));
 
 // Sincronizar métricas cada hora
 cron.schedule("0 * * * *", () => {

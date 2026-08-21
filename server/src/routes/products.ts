@@ -8,7 +8,7 @@ router.use(authMiddleware);
 
 const productSchema = z.object({
   name: z.string().min(1),
-  sku: z.string().min(1),
+  sku: z.string().optional(), // si viene vacío se genera solo
   description: z.string().optional(),
   categoryId: z.string().optional(),
   costPrice: z.number().min(0).default(0),
@@ -68,8 +68,19 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   if (parsed.data.imageData && parsed.data.imageData.length > MAX_IMG_CHARS) {
     res.status(400).json({ error: "La imagen es muy grande (máx. 2,5 MB)" }); return;
   }
-  const product = await prisma.product.create({ data: parsed.data as any, select: productSelect });
-  res.status(201).json(product);
+  const data = { ...parsed.data };
+  if (!data.sku || !data.sku.trim()) {
+    data.sku = `P-${Date.now().toString(36).toUpperCase()}`; // SKU automático
+  }
+  try {
+    const product = await prisma.product.create({ data: data as any, select: productSelect });
+    res.status(201).json(product);
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((err as any)?.code === "P2002") { res.status(400).json({ error: "Ya existe un producto con ese SKU. Usá otro o dejalo vacío." }); return; }
+    console.error("Error creando producto:", err);
+    res.status(500).json({ error: "No se pudo crear el producto" });
+  }
 });
 
 router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -82,24 +93,31 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
   if (!existing) { res.status(404).json({ error: "Producto no encontrado" }); return; }
 
-  const product = await prisma.product.update({
-    where: { id: req.params.id },
-    data: parsed.data as any,
-    select: productSelect,
-  });
-
-  // Track price change
-  if (parsed.data.sellPrice !== undefined && Number(parsed.data.sellPrice) !== Number(existing.sellPrice)) {
-    await prisma.priceHistory.create({
-      data: {
-        productId: product.id,
-        oldPrice: existing.sellPrice,
-        newPrice: parsed.data.sellPrice,
-      },
+  try {
+    const product = await prisma.product.update({
+      where: { id: req.params.id },
+      data: parsed.data as any,
+      select: productSelect,
     });
-  }
 
-  res.json(product);
+    // Track price change
+    if (parsed.data.sellPrice !== undefined && Number(parsed.data.sellPrice) !== Number(existing.sellPrice)) {
+      await prisma.priceHistory.create({
+        data: {
+          productId: product.id,
+          oldPrice: existing.sellPrice,
+          newPrice: parsed.data.sellPrice,
+        },
+      });
+    }
+
+    res.json(product);
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((err as any)?.code === "P2002") { res.status(400).json({ error: "Ya existe un producto con ese SKU." }); return; }
+    console.error("Error editando producto:", err);
+    res.status(500).json({ error: "No se pudo guardar el producto" });
+  }
 });
 
 router.get("/:id/price-history", async (req: AuthRequest, res: Response): Promise<void> => {
