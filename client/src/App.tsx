@@ -19,6 +19,8 @@ import Cobros from "./pages/Cobros";
 import Produccion from "./pages/Produccion";
 import Historial from "./pages/Historial";
 import Backup from "./pages/Backup";
+import Materiales from "./pages/Materiales";
+import PurchaseOrders from "./pages/PurchaseOrders";
 import Expenses from "./pages/Expenses";
 import Planos from "./pages/Planos";
 import CampaignCalendar from "./pages/CampaignCalendar";
@@ -120,6 +122,16 @@ export default function App() {
           <Route path="/historial" element={
             <RoleRoute role="OWNER">
               <Layout><Historial /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/materiales" element={
+            <RoleRoute role="OWNER">
+              <Layout><Materiales /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/compras" element={
+            <RoleRoute role="OWNER">
+              <Layout><PurchaseOrders /></Layout>
             </RoleRoute>
           } />
           <Route path="/backup" element={

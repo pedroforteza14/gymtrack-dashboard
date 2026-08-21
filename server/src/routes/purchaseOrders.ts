@@ -6,10 +6,14 @@ import { authMiddleware, AuthRequest } from "../middleware/auth";
 const router = Router();
 router.use(authMiddleware);
 
+// Un item puede ser un producto del catálogo o un material suelto (descripción libre)
 const itemSchema = z.object({
-  productId: z.string(),
+  productId: z.string().optional().nullable(),
+  description: z.string().optional(),
   quantity: z.number().int().positive(),
   unitCost: z.number().min(0),
+}).refine((i) => !!i.productId || !!i.description?.trim(), {
+  message: "Indicá un producto o una descripción",
 });
 
 const createSchema = z.object({
@@ -58,7 +62,8 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       expectedAt: expectedAt ? new Date(expectedAt) : undefined,
       items: {
         create: items.map((i) => ({
-          productId: i.productId,
+          productId: i.productId || null,
+          description: i.description || null,
           quantity: i.quantity,
           unitCost: i.unitCost,
           subtotal: i.unitCost * i.quantity,
@@ -70,39 +75,16 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   res.status(201).json(order);
 });
 
-// Mark order as received — updates stock and costPrice
+// Marcar la compra como recibida (trabajamos a pedido: no se toca stock)
 router.post("/:id/receive", async (req: AuthRequest, res: Response): Promise<void> => {
-  const order = await prisma.purchaseOrder.findUnique({
-    where: { id: req.params.id },
-    include: { items: true },
-  });
-  if (!order) { res.status(404).json({ error: "Orden no encontrada" }); return; }
+  const order = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id } });
+  if (!order) { res.status(404).json({ error: "Compra no encontrada" }); return; }
   if (order.status === "RECEIVED") { res.status(400).json({ error: "Ya fue recibida" }); return; }
 
-  await prisma.$transaction(async (tx) => {
-    for (const item of order.items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: { increment: item.quantity },
-          costPrice: item.unitCost,
-        },
-      });
-      await tx.stockMovement.create({
-        data: {
-          productId: item.productId,
-          type: "IN",
-          quantity: item.quantity,
-          reason: `Orden de compra ${order.orderNumber}`,
-        },
-      });
-    }
-    await tx.purchaseOrder.update({
-      where: { id: order.id },
-      data: { status: "RECEIVED", receivedAt: new Date() },
-    });
+  await prisma.purchaseOrder.update({
+    where: { id: order.id },
+    data: { status: "RECEIVED", receivedAt: new Date() },
   });
-
   res.json({ ok: true });
 });
 

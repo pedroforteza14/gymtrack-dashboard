@@ -235,8 +235,9 @@ model PurchaseOrderItem {
   id              String        @id @default(cuid())
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product       @relation(fields: [productId], references: [id])
+  productId       String?
+  product         Product?      @relation(fields: [productId], references: [id])
+  description     String?
   quantity        Int
   unitCost        Decimal       @db.Decimal(10, 2)
   subtotal        Decimal       @db.Decimal(10, 2)

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X,
-  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory, Archive, DatabaseBackup,
+  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory, Archive, DatabaseBackup, Hammer, ShoppingBag,
 } from "lucide-react";
 import { logout, isAuthenticated, getRole } from "../lib/auth";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +19,8 @@ const ownerNav = [
   { to: "/fichas", icon: ClipboardList, label: "Fichas de pedido" },
   { to: "/produccion", icon: Factory, label: "Producción" },
   { to: "/historial", icon: Archive, label: "Historial" },
+  { to: "/materiales", icon: Hammer, label: "Materiales" },
+  { to: "/compras", icon: ShoppingBag, label: "Compras" },
   { to: "/planos", icon: Ruler, label: "Planos" },
   { to: "/expenses", icon: Wallet, label: "Gastos" },
   { to: "/analytics", icon: PieChart, label: "Analytics" },

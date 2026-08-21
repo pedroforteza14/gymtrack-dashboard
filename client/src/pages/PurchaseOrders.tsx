@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 
 interface Product { id: string; name: string; sku: string; }
-interface POItem { productId: string; quantity: number; unitCost: number; product?: { name: string; sku: string }; subtotal: number; }
+interface POItem { productId?: string | null; description?: string | null; quantity: number; unitCost: number; product?: { name: string; sku: string }; subtotal: number; }
 interface PurchaseOrder {
   id: string; orderNumber: string; supplier: string; status: string;
   notes?: string; totalCost: number; expectedAt?: string; receivedAt?: string;
@@ -22,7 +22,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 type FormData = {
   supplier: string; notes?: string; expectedAt?: string;
-  items: { productId: string; quantity: number; unitCost: number }[];
+  items: { productId?: string; description?: string; quantity: number; unitCost: number }[];
 };
 
 export default function PurchaseOrders() {
@@ -39,7 +39,7 @@ export default function PurchaseOrders() {
   });
 
   const { register, handleSubmit, control, reset, watch } = useForm<FormData>({
-    defaultValues: { items: [{ productId: "", quantity: 1, unitCost: 0 }] },
+    defaultValues: { items: [{ productId: "", description: "", quantity: 1, unitCost: 0 }] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const watchedItems = watch("items");
@@ -68,11 +68,11 @@ export default function PurchaseOrders() {
     <div className="p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2"><ShoppingBag size={24} /> Órdenes de compra</h1>
-          <p className="text-gray-400 text-sm mt-1">{orders.length} órdenes registradas</p>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2"><ShoppingBag size={24} /> Compras a proveedores</h1>
+          <p className="text-gray-400 text-sm mt-1">{orders.length} compras registradas</p>
         </div>
         <button onClick={() => { reset(); setModalOpen(true); }} className="btn-primary">
-          <Plus size={16} /> Nueva orden
+          <Plus size={16} /> Nueva compra
         </button>
       </div>
 
@@ -80,7 +80,7 @@ export default function PurchaseOrders() {
         <table className="w-full text-sm">
           <thead className="bg-gray-800/50">
             <tr className="text-left">
-              <th className="px-6 py-3 text-gray-400 font-medium">Orden</th>
+              <th className="px-6 py-3 text-gray-400 font-medium">Compra</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Proveedor</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Estado</th>
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Total</th>
@@ -92,7 +92,7 @@ export default function PurchaseOrders() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Cargando...</td></tr>
             ) : orders.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Sin órdenes registradas</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Sin compras registradas</td></tr>
             ) : orders.map((o) => {
               const st = STATUS_LABELS[o.status] ?? STATUS_LABELS.PENDING;
               return (
@@ -110,13 +110,13 @@ export default function PurchaseOrders() {
                       {o.status === "PENDING" && (
                         <>
                           <button
-                            onClick={() => { if (confirm("¿Marcar esta orden como recibida?")) receiveMutation.mutate(o.id); }}
+                            onClick={() => { if (confirm("¿Marcar esta compra como recibida?")) receiveMutation.mutate(o.id); }}
                             className="flex items-center gap-1 px-2 py-1 text-xs text-green-400 hover:bg-green-400/10 rounded-lg transition-colors"
                           >
                             <CheckCircle2 size={13} /> Recibir
                           </button>
                           <button
-                            onClick={() => { if (confirm("¿Cancelar esta orden?")) cancelMutation.mutate(o.id); }}
+                            onClick={() => { if (confirm("¿Cancelar esta compra?")) cancelMutation.mutate(o.id); }}
                             className="flex items-center gap-1 px-2 py-1 text-xs text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                           >
                             <X size={13} /> Cancelar
@@ -137,7 +137,7 @@ export default function PurchaseOrders() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 sticky top-0 bg-gray-900">
-              <h2 className="font-semibold text-white">Nueva orden de compra</h2>
+              <h2 className="font-semibold text-white">Nueva compra</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-100"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="p-6 space-y-4">
@@ -159,30 +159,34 @@ export default function PurchaseOrders() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="label mb-0">Productos</label>
-                  <button type="button" onClick={() => append({ productId: "", quantity: 1, unitCost: 0 })}
+                  <button type="button" onClick={() => append({ productId: "", description: "", quantity: 1, unitCost: 0 })}
                     className="text-xs text-gray-200 hover:text-gray-100 flex items-center gap-1">
                     <Plus size={12} /> Agregar
                   </button>
                 </div>
                 <div className="space-y-2">
                   {fields.map((field, idx) => (
-                    <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <select {...register(`items.${idx}.productId`, { required: true })} className="input text-sm">
-                          <option value="">Seleccionar producto</option>
+                    <div key={field.id} className="grid grid-cols-12 gap-2 items-center bg-gray-800/30 rounded-lg p-2">
+                      <div className="col-span-12 md:col-span-5 space-y-1.5">
+                        <select {...register(`items.${idx}.productId`)} className="input text-sm">
+                          <option value="">— Material / insumo suelto —</option>
                           {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
                         </select>
+                        {!watchedItems[idx]?.productId && (
+                          <input {...register(`items.${idx}.description`)} className="input text-sm"
+                            placeholder="Ej: Caño 40x40, pintura negra..." />
+                        )}
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-3 md:col-span-2">
                         <input {...register(`items.${idx}.quantity`)} type="number" min="1" className="input text-sm" placeholder="Cant." />
                       </div>
-                      <div className="col-span-3">
+                      <div className="col-span-4 md:col-span-3">
                         <input {...register(`items.${idx}.unitCost`)} type="number" step="0.01" className="input text-sm" placeholder="Costo unit." />
                       </div>
-                      <div className="col-span-1 text-right text-xs text-gray-400">
+                      <div className="col-span-3 md:col-span-1 text-right text-xs text-gray-400">
                         {currency((Number(watchedItems[idx]?.unitCost) || 0) * (Number(watchedItems[idx]?.quantity) || 0))}
                       </div>
-                      <div className="col-span-1 flex justify-end">
+                      <div className="col-span-2 md:col-span-1 flex justify-end">
                         {fields.length > 1 && (
                           <button type="button" onClick={() => remove(idx)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
                         )}
@@ -199,7 +203,7 @@ export default function PurchaseOrders() {
                 <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary flex-1 justify-center">Cancelar</button>
                 <button type="submit" disabled={createMutation.isPending} className="btn-primary flex-1 justify-center">
                   {createMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
-                  Crear orden
+                  Crear compra
                 </button>
               </div>
             </form>

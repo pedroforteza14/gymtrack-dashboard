@@ -20,6 +20,7 @@ import expensesRouter from "./routes/expenses";
 import planosRouter from "./routes/planos";
 import fichasRouter from "./routes/fichas";
 import backupRouter from "./routes/backup";
+import materialsRouter from "./routes/materials";
 import { syncAllMetrics } from "./lib/syncMetrics";
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/expenses", expensesRouter);
 app.use("/api/planos", planosRouter);
 app.use("/api/fichas", fichasRouter);
 app.use("/api/backup", backupRouter);
+app.use("/api/materials", materialsRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
