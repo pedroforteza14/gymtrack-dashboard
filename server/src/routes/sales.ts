@@ -37,7 +37,7 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { deletedAt: null };
   if (clientId)           where.clientId  = clientId;
   if (dateFrom || dateTo) {
     where.createdAt = {
@@ -151,7 +151,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
 
   await prisma.$transaction(async (tx) => {
     await tx.stockMovement.deleteMany({ where: { saleId: sale.id } });
-    await tx.sale.delete({ where: { id: sale.id } });
+    await tx.sale.update({ where: { id: sale.id }, data: { deletedAt: new Date() } });
   });
 
   res.json({ ok: true });

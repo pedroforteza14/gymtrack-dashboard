@@ -155,8 +155,8 @@ router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Prom
 });
 
 router.delete("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  await prisma.sale.deleteMany({ where: { fichaId: req.params.id } });
-  await prisma.fichaPedido.delete({ where: { id: req.params.id } });
+  await prisma.sale.updateMany({ where: { fichaId: req.params.id }, data: { deletedAt: new Date() } });
+  await prisma.fichaPedido.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
 });
 

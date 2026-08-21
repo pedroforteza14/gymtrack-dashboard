@@ -35,7 +35,8 @@ function monthRange(month?: string): { start: Date; end: Date } {
 // List expenses (optionally filtered by month)
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const { month } = req.query as { month?: string };
-  const where = month ? { date: { gte: monthRange(month).start, lt: monthRange(month).end } } : {};
+  const where: Record<string, unknown> = { deletedAt: null };
+  if (month) where.date = { gte: monthRange(month).start, lt: monthRange(month).end };
   const expenses = await prisma.expense.findMany({ where, orderBy: { date: "desc" } });
   res.json(expenses);
 });
@@ -46,8 +47,8 @@ router.get("/summary", async (req: AuthRequest, res: Response): Promise<void> =>
   const { start, end } = monthRange(month);
 
   const [expenses, sales] = await Promise.all([
-    prisma.expense.findMany({ where: { date: { gte: start, lt: end } } }),
-    prisma.sale.findMany({ where: { createdAt: { gte: start, lt: end } }, select: { totalRevenue: true, totalProfit: true } }),
+    prisma.expense.findMany({ where: { deletedAt: null, date: { gte: start, lt: end } } }),
+    prisma.sale.findMany({ where: { deletedAt: null, createdAt: { gte: start, lt: end } }, select: { totalRevenue: true, totalProfit: true } }),
   ]);
 
   const companyExpenses = expenses.filter((e) => e.expenseType !== "PERSONAL").reduce((s, e) => s + Number(e.amount), 0);
@@ -102,7 +103,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
-  await prisma.expense.delete({ where: { id: req.params.id } });
+  await prisma.expense.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
 });
 

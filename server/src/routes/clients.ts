@@ -16,6 +16,7 @@ const clientSchema = z.object({
 
 router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const clients = await prisma.client.findMany({
+    where: { deletedAt: null },
     include: {
       _count: { select: { sales: true, quotes: true } },
       sales: {
@@ -70,7 +71,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
-  await prisma.client.delete({ where: { id: req.params.id } });
+  await prisma.client.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
 });
 

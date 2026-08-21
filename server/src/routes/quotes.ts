@@ -27,6 +27,7 @@ async function generateQuoteNumber(): Promise<string> {
 
 router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const quotes = await prisma.quote.findMany({
+    where: { deletedAt: null },
     include: {
       client: { select: { name: true, phone: true } },
       items: { include: { product: { select: { name: true } } } },
@@ -113,7 +114,7 @@ router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> 
 });
 
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
-  await prisma.quote.delete({ where: { id: req.params.id } });
+  await prisma.quote.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
 });
 

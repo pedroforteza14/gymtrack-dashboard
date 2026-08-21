@@ -20,6 +20,7 @@ import Produccion from "./pages/Produccion";
 import Historial from "./pages/Historial";
 import Backup from "./pages/Backup";
 import Materiales from "./pages/Materiales";
+import Utilidades from "./pages/Utilidades";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Expenses from "./pages/Expenses";
 import Planos from "./pages/Planos";
@@ -132,6 +133,11 @@ export default function App() {
           <Route path="/compras" element={
             <RoleRoute role="OWNER">
               <Layout><PurchaseOrders /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/utilidades" element={
+            <RoleRoute role="OWNER">
+              <Layout><Utilidades /></Layout>
             </RoleRoute>
           } />
           <Route path="/backup" element={

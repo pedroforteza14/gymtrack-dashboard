@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X,
-  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory, Archive, DatabaseBackup, Hammer, ShoppingBag,
+  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory, Archive, DatabaseBackup, Hammer, ShoppingBag, StickyNote,
 } from "lucide-react";
 import { logout, isAuthenticated, getRole } from "../lib/auth";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +24,7 @@ const ownerNav = [
   { to: "/planos", icon: Ruler, label: "Planos" },
   { to: "/expenses", icon: Wallet, label: "Gastos" },
   { to: "/analytics", icon: PieChart, label: "Analytics" },
+  { to: "/utilidades", icon: StickyNote, label: "Notas y papelera" },
   { to: "/backup", icon: DatabaseBackup, label: "Backup" },
 ];
 

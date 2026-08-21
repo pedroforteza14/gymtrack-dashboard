@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Skeleton } from "../components/Skeleton";
+import Attachments from "../components/Attachments";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 
@@ -255,6 +256,9 @@ export default function Fichas() {
                 <label className="label">Observaciones / personalización</label>
                 <textarea value={form.observations} onChange={(e) => setForm({ ...form, observations: e.target.value })} rows={2} className="input resize-none" />
               </div>
+
+              {/* Adjuntos (solo al editar, necesita el id de la ficha) */}
+              {editId && <Attachments entityType="ficha" entityId={editId} />}
 
               {/* 6. Control interno */}
               <div>
