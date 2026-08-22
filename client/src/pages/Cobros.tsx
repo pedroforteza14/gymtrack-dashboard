@@ -8,6 +8,11 @@ import CountUp from "../components/CountUp";
 import { Skeleton } from "../components/Skeleton";
 
 interface Payment { id: string; amount: number; date: string; method?: string; notes?: string; }
+interface Sale {
+  id: string; saleNumber: string; createdAt: string;
+  totalRevenue: number; pendingAmount?: number; paymentStatus: string;
+  client?: { id: string; name: string } | null;
+}
 interface Ficha {
   id: string; fichaNumber: string; clientName: string; clientPhone?: string;
   total: number; deposit: number; estimatedDate?: string;
@@ -48,10 +53,25 @@ export default function Cobros() {
     queryFn: () => api.get("/fichas").then((r) => r.data),
   });
 
+  // Ventas manuales con pago pendiente o parcial
+  const { data: salesData } = useQuery<{ sales: Sale[] }>({
+    queryKey: ["sales", "cobros"],
+    queryFn: () => api.get("/sales?limit=200").then((r) => r.data),
+  });
+  const ventasPendientes = (salesData?.sales ?? [])
+    .filter((v) => v.paymentStatus !== "PAID" && Number(v.pendingAmount ?? 0) > 0)
+    .sort((a, b) => Number(b.pendingAmount) - Number(a.pendingAmount));
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["fichas"] });
+    qc.invalidateQueries({ queryKey: ["sales"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
+
+  const saldarVentaMut = useMutation({
+    mutationFn: (v: Sale) => api.put(`/sales/${v.id}/payment`, { paymentStatus: "PAID", pendingAmount: 0 }),
+    onSuccess: () => { refresh(); toast.success("Venta saldada 💰"); },
+  });
 
   const addPayMut = useMutation({
     mutationFn: () => api.post(`/fichas/${payFicha!.id}/payments`, {
@@ -81,7 +101,9 @@ export default function Cobros() {
     .filter((f) => f.saldo > 0)
     .sort((a, b) => b.saldo - a.saldo);
 
-  const totalPorCobrar = pendientes.reduce((s, f) => s + f.saldo, 0);
+  const totalVentas = ventasPendientes.reduce((s, v) => s + Number(v.pendingAmount ?? 0), 0);
+  const totalPorCobrar = pendientes.reduce((s, f) => s + f.saldo, 0) + totalVentas;
+  const cuentasConSaldo = pendientes.length + ventasPendientes.length;
 
   function recordar(f: Ficha & { saldo: number }) {
     const msg = `Hola ${f.clientName}! Te escribo de The Promise Machine 💪 Te recuerdo que queda un saldo de ${currency(f.saldo)} del pedido ${f.fichaNumber}. ¡Cualquier cosa quedo a disposición!`;
@@ -93,7 +115,7 @@ export default function Cobros() {
     <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Coins size={24} /> Cobros pendientes</h1>
-        <p className="text-gray-400 text-sm mt-1">Saldos por cobrar de las fichas de pedido</p>
+        <p className="text-gray-400 text-sm mt-1">Saldos por cobrar de pedidos y ventas</p>
       </div>
 
       {/* Resumen */}
@@ -110,7 +132,7 @@ export default function Cobros() {
             <div className="p-2 rounded-lg bg-white/10 text-white"><MessageCircle size={18} /></div>
             <span className="text-gray-400 text-sm">Cuentas con saldo</span>
           </div>
-          <p className="text-3xl font-bold text-white"><CountUp value={pendientes.length} /></p>
+          <p className="text-3xl font-bold text-white"><CountUp value={cuentasConSaldo} /></p>
         </div>
       </div>
 
@@ -137,7 +159,7 @@ export default function Cobros() {
                   ))}
                 </tr>
               ))
-            ) : pendientes.length === 0 ? (
+            ) : cuentasConSaldo === 0 ? (
               <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">🎉 No hay saldos pendientes de cobro</td></tr>
             ) : pendientes.map((f) => (
               <tr key={f.id} className="hover:bg-gray-800/30">
@@ -178,6 +200,39 @@ export default function Cobros() {
                     <button
                       onClick={() => openPay(f, true)}
                       title="Cobrar el saldo completo"
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold bg-white text-gray-950 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      <CheckCircle2 size={13} /> Saldar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {/* Ventas manuales con saldo pendiente */}
+            {ventasPendientes.map((v) => (
+              <tr key={v.id} className="hover:bg-gray-800/30">
+                <td className="px-6 py-4">
+                  <p className="font-mono font-medium text-white">{v.saleNumber}</p>
+                  <p className="text-xs text-gray-500">Venta · {dateShort(v.createdAt)}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <p className="text-gray-100 font-medium">{v.client?.name ?? "Sin cliente"}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/60 text-gray-300">
+                    {v.paymentStatus === "PARTIAL" ? "Pago parcial" : "Pago pendiente"}
+                  </span>
+                </td>
+                <td className="px-4 py-4 text-right text-gray-300">{currency(Number(v.totalRevenue))}</td>
+                <td className="px-4 py-4 text-right text-gray-400">
+                  {currency(Number(v.totalRevenue) - Number(v.pendingAmount ?? 0))}
+                </td>
+                <td className="px-4 py-4 text-right font-bold text-yellow-400">{currency(Number(v.pendingAmount ?? 0))}</td>
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <button
+                      onClick={() => { if (confirm(`¿Marcar como cobrada la venta ${v.saleNumber}?`)) saldarVentaMut.mutate(v); }}
                       className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold bg-white text-gray-950 hover:bg-gray-200 rounded-lg transition-colors"
                     >
                       <CheckCircle2 size={13} /> Saldar

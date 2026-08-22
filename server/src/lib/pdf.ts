@@ -10,6 +10,7 @@ interface QuoteItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  notes?: string | null;
 }
 
 interface QuoteData {
@@ -122,12 +123,21 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
   y += 26;
 
   quote.items.forEach((item, i) => {
-    const rowH = 24;
+    const nameW = cUnit - cName - 10;
+    const nota = item.notes?.trim();
+    // La fila crece si el producto tiene una observación
+    const notaH = nota ? doc.fontSize(8).font("Helvetica-Oblique").heightOfString(nota, { width: nameW }) + 3 : 0;
+    const rowH = 24 + notaH;
+
     if (i % 2 === 1) doc.rect(L, y, W, rowH).fill(ZEBRA);
     doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold").text(String(item.quantity), cQty, y + 7, { width: 40 });
     doc.fontSize(9.5).fillColor(SOFT).font("Helvetica")
-      .text(item.name, cName, y + 7, { width: cUnit - cName - 10, ellipsis: true });
-    doc.fillColor(SOFT).text(formatARS(item.unitPrice), cUnit, y + 7, { width: 90, align: "right" });
+      .text(item.name, cName, y + 7, { width: nameW, ellipsis: true });
+    if (nota) {
+      doc.fontSize(8).fillColor(MUTED).font("Helvetica-Oblique")
+        .text(nota, cName, y + 19, { width: nameW });
+    }
+    doc.fontSize(9.5).fillColor(SOFT).font("Helvetica").text(formatARS(item.unitPrice), cUnit, y + 7, { width: 90, align: "right" });
     doc.fillColor(INK).font("Helvetica-Bold").text(formatARS(item.subtotal), cSub, y + 7, { width: 90, align: "right" });
     y += rowH;
   });

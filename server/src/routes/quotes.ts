@@ -11,6 +11,7 @@ const quoteItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().int().positive(),
   unitPrice: z.number().positive(),
+  notes: z.string().optional(), // observación de ese producto en particular
 });
 
 const createQuoteSchema = z.object({
@@ -69,6 +70,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       subtotal,
+      notes: item.notes || null,
     };
   });
 
@@ -151,6 +153,7 @@ router.get("/:id/pdf", async (req: AuthRequest, res: Response): Promise<void> =>
       quantity: i.quantity,
       unitPrice: Number(i.unitPrice),
       subtotal: Number(i.subtotal),
+      notes: i.notes,
     })),
   };
 

@@ -11,7 +11,7 @@ import {
 
 interface Product { id: string; name: string; sku: string; sellPrice: number; }
 interface Client { id: string; name: string; }
-interface QuoteItem { productId: string; quantity: number; unitPrice: number; product?: { name: string; sku: string }; subtotal?: number; }
+interface QuoteItem { productId: string; quantity: number; unitPrice: number; notes?: string; product?: { name: string; sku: string }; subtotal?: number; }
 interface Quote {
   id: string; quoteNumber: string; status: string; totalAmount: number;
   createdAt: string; validDays: number; notes?: string; cashDiscount?: number; installments?: number;
@@ -42,7 +42,7 @@ export default function Quotes() {
   const [validDays, setValidDays] = useState(15);
   const [cashDiscount, setCashDiscount] = useState(15);
   const [installments, setInstallments] = useState(6);
-  const [items, setItems] = useState<{ productId: string; quantity: number; unitPrice: number }[]>([]);
+  const [items, setItems] = useState<{ productId: string; quantity: number; unitPrice: number; notes?: string }[]>([]);
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ["quotes"],
@@ -105,7 +105,7 @@ export default function Quotes() {
 
   const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setCashDiscount(15); setInstallments(6); setItems([]); };
 
-  const addItem = () => setItems([...items, { productId: "", quantity: 1, unitPrice: 0 }]);
+  const addItem = () => setItems([...items, { productId: "", quantity: 1, unitPrice: 0, notes: "" }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, value: string | number) => {
     const updated = [...items];
@@ -254,7 +254,10 @@ export default function Quotes() {
                       <tbody className="divide-y divide-gray-800">
                         {q.items.map((item, i) => (
                           <tr key={i}>
-                            <td className="py-1.5 text-gray-300">{item.product?.name ?? item.productId}</td>
+                            <td className="py-1.5 text-gray-300">
+                              {item.product?.name ?? item.productId}
+                              {item.notes && <p className="text-xs text-gray-500 italic">{item.notes}</p>}
+                            </td>
                             <td className="py-1.5 text-right text-gray-400">{item.quantity}</td>
                             <td className="py-1.5 text-right text-gray-400">{currency(Number(item.unitPrice))}</td>
                             <td className="py-1.5 text-right text-white font-medium">{currency(Number(item.subtotal))}</td>
@@ -373,34 +376,41 @@ export default function Quotes() {
                 </div>
                 <div className="space-y-2">
                   {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <select value={item.productId}
-                          onChange={(e) => updateItem(i, "productId", e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400">
-                          <option value="">Seleccionar...</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
+                    <div key={i} className="bg-gray-800/30 rounded-lg p-2 space-y-2">
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-5">
+                          <select value={item.productId}
+                            onChange={(e) => updateItem(i, "productId", e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400">
+                            <option value="">Seleccionar...</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-2">
+                          <input type="number" value={item.quantity} min={1}
+                            onChange={(e) => updateItem(i, "quantity", Number(e.target.value))}
+                            placeholder="Cant."
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
+                        </div>
+                        <div className="col-span-4">
+                          <input type="number" value={item.unitPrice}
+                            onChange={(e) => updateItem(i, "unitPrice", Number(e.target.value))}
+                            placeholder="Precio"
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
+                        </div>
+                        <div className="col-span-1 flex justify-center">
+                          <button onClick={() => removeItem(i)} className="text-gray-600 hover:text-red-400 transition-colors">
+                            <X size={14} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="col-span-2">
-                        <input type="number" value={item.quantity} min={1}
-                          onChange={(e) => updateItem(i, "quantity", Number(e.target.value))}
-                          placeholder="Cant."
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
-                      </div>
-                      <div className="col-span-4">
-                        <input type="number" value={item.unitPrice}
-                          onChange={(e) => updateItem(i, "unitPrice", Number(e.target.value))}
-                          placeholder="Precio"
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
-                      </div>
-                      <div className="col-span-1 flex justify-center">
-                        <button onClick={() => removeItem(i)} className="text-gray-600 hover:text-red-400 transition-colors">
-                          <X size={14} />
-                        </button>
-                      </div>
+                      {/* Observación de este producto en particular */}
+                      <input value={item.notes ?? ""}
+                        onChange={(e) => updateItem(i, "notes", e.target.value)}
+                        placeholder="Observación de este producto (ej: en negro mate, con tapizado rojo...)"
+                        className="w-full bg-gray-800/60 border border-gray-700/60 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
                     </div>
                   ))}
                   {items.length === 0 && (

@@ -142,6 +142,17 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   res.status(201).json(sale);
 });
 
+// Actualizar el estado de cobro de una venta (usado desde Cobros)
+router.put("/:id/payment", async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = z.object({
+    paymentStatus: z.enum(["PAID", "PENDING", "PARTIAL"]).optional(),
+    pendingAmount: z.number().min(0).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const sale = await prisma.sale.update({ where: { id: req.params.id }, data: parsed.data });
+  res.json(sale);
+});
+
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const sale = await prisma.sale.findUnique({
     where: { id: req.params.id },

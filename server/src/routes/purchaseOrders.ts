@@ -75,16 +75,39 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   res.status(201).json(order);
 });
 
-// Marcar la compra como recibida (trabajamos a pedido: no se toca stock)
+// Marcar la compra como recibida (trabajamos a pedido: no se toca stock).
+// Al recibirla se registra como gasto de la empresa, para que impacte en el balance.
 router.post("/:id/receive", async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = z.object({
+    paymentSource: z.enum(["VISA", "MASTER", "PAPA", "EFECTIVO_MP", "OTRO"]).optional(),
+  }).safeParse(req.body ?? {});
+  const paymentSource = parsed.success ? parsed.data.paymentSource ?? "EFECTIVO_MP" : "EFECTIVO_MP";
+
   const order = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id } });
   if (!order) { res.status(404).json({ error: "Compra no encontrada" }); return; }
   if (order.status === "RECEIVED") { res.status(400).json({ error: "Ya fue recibida" }); return; }
 
+  const receivedAt = new Date();
   await prisma.purchaseOrder.update({
     where: { id: order.id },
-    data: { status: "RECEIVED", receivedAt: new Date() },
+    data: { status: "RECEIVED", receivedAt },
   });
+
+  // Crear el gasto asociado (si todavía no existe)
+  const yaExiste = await prisma.expense.findUnique({ where: { purchaseOrderId: order.id } });
+  if (!yaExiste && Number(order.totalCost) > 0) {
+    await prisma.expense.create({
+      data: {
+        purchaseOrderId: order.id,
+        date: receivedAt,
+        concept: `Compra ${order.orderNumber} — ${order.supplier}`,
+        amount: order.totalCost,
+        paymentSource,
+        expenseType: "EMPRESA",
+        category: "Compras a proveedores",
+      },
+    });
+  }
   res.json({ ok: true });
 });
 
@@ -92,6 +115,11 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
   await prisma.purchaseOrder.update({
     where: { id: req.params.id },
     data: { status: "CANCELLED" },
+  });
+  // Si la compra ya había generado un gasto, lo damos de baja también
+  await prisma.expense.updateMany({
+    where: { purchaseOrderId: req.params.id, deletedAt: null },
+    data: { deletedAt: new Date() },
   });
   res.json({ ok: true });
 });

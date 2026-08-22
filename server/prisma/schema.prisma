@@ -73,7 +73,7 @@ model Category {
 }
 
 model Client {
-  id        String    @id @default(cuid())
+  id        String        @id @default(cuid())
   name      String
   email     String?
   phone     String?
@@ -81,9 +81,10 @@ model Client {
   notes     String?
   sales     Sale[]
   quotes    Quote[]
+  fichas    FichaPedido[]
   deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model Product {
@@ -156,21 +157,21 @@ model SaleItem {
 }
 
 model Quote {
-  id          String      @id @default(cuid())
-  quoteNumber String      @unique
-  clientId    String?
-  client      Client?     @relation(fields: [clientId], references: [id])
-  items       QuoteItem[]
-  notes       String?
-  validDays   Int         @default(15)
-  status      QuoteStatus @default(DRAFT)
-  totalAmount Decimal     @db.Decimal(10, 2)
+  id           String      @id @default(cuid())
+  quoteNumber  String      @unique
+  clientId     String?
+  client       Client?     @relation(fields: [clientId], references: [id])
+  items        QuoteItem[]
+  notes        String?
+  validDays    Int         @default(15)
+  status       QuoteStatus @default(DRAFT)
+  totalAmount  Decimal     @db.Decimal(10, 2)
   // Formas de pago que se muestran en el PDF
-  cashDiscount Decimal    @default(15) @db.Decimal(5, 2) // % OFF en efectivo/transferencia
-  installments Int        @default(6)                    // cuotas sin interés
-  deletedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  cashDiscount Decimal     @default(15) @db.Decimal(5, 2) // % OFF en efectivo/transferencia
+  installments Int         @default(6) // cuotas sin interés
+  deletedAt    DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
 
 model QuoteItem {
@@ -182,6 +183,7 @@ model QuoteItem {
   quantity  Int
   unitPrice Decimal @db.Decimal(10, 2)
   subtotal  Decimal @db.Decimal(10, 2)
+  notes     String?
 }
 
 model StockMovement {
@@ -230,6 +232,7 @@ model PurchaseOrder {
   totalCost   Decimal             @db.Decimal(10, 2)
   expectedAt  DateTime?
   receivedAt  DateTime?
+  expense     Expense?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 }
@@ -265,17 +268,19 @@ model GoogleAdsToken {
 }
 
 model Expense {
-  id            String    @id @default(cuid())
-  date          DateTime
-  concept       String
-  amount        Decimal   @db.Decimal(12, 2)
-  paymentSource String    @default("EFECTIVO_MP")
-  expenseType   String    @default("EMPRESA")
-  category      String?
-  notes         String?
-  deletedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String         @id @default(cuid())
+  purchaseOrderId String?        @unique
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  date            DateTime
+  concept         String
+  amount          Decimal        @db.Decimal(12, 2)
+  paymentSource   String         @default("EFECTIVO_MP")
+  expenseType     String         @default("EMPRESA")
+  category        String?
+  notes           String?
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([date])
 }
@@ -311,6 +316,8 @@ model FichaPedido {
   date           DateTime  @default(now())
   estimatedDate  DateTime?
   // Cliente
+  clientId       String?
+  client         Client?   @relation(fields: [clientId], references: [id])
   clientName     String
   clientPhone    String?
   clientLocation String?

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Plus, Trash2, X, CheckCircle2, Package, Loader2, ShoppingBag } from "lucide-react";
+import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { currency, dateShort } from "../lib/format";
 
@@ -28,6 +29,8 @@ type FormData = {
 export default function PurchaseOrders() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [receiving, setReceiving] = useState<PurchaseOrder | null>(null);
+  const [paySource, setPaySource] = useState("EFECTIVO_MP");
 
   const { data: orders = [], isLoading } = useQuery<PurchaseOrder[]>({
     queryKey: ["purchase-orders"],
@@ -53,8 +56,15 @@ export default function PurchaseOrders() {
   });
 
   const receiveMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/purchase-orders/${id}/receive`, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); qc.invalidateQueries({ queryKey: ["products"] }); },
+    mutationFn: ({ id, paymentSource }: { id: string; paymentSource: string }) =>
+      api.post(`/purchase-orders/${id}/receive`, { paymentSource }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["expenses-summary"] });
+      toast.success("Compra recibida y registrada como gasto 💸");
+      setReceiving(null);
+    },
   });
 
   const cancelMutation = useMutation({
@@ -110,13 +120,13 @@ export default function PurchaseOrders() {
                       {o.status === "PENDING" && (
                         <>
                           <button
-                            onClick={() => { if (confirm("¿Marcar esta compra como recibida?")) receiveMutation.mutate(o.id); }}
+                            onClick={() => { setReceiving(o); setPaySource("EFECTIVO_MP"); }}
                             className="flex items-center gap-1 px-2 py-1 text-xs text-green-400 hover:bg-green-400/10 rounded-lg transition-colors"
                           >
                             <CheckCircle2 size={13} /> Recibir
                           </button>
                           <button
-                            onClick={() => { if (confirm("¿Cancelar esta compra?")) cancelMutation.mutate(o.id); }}
+                            onClick={() => { if (confirm("¿Cancelar esta compra? Si ya generó un gasto, también se da de baja.")) cancelMutation.mutate(o.id); }}
                             className="flex items-center gap-1 px-2 py-1 text-xs text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                           >
                             <X size={13} /> Cancelar
@@ -207,6 +217,57 @@ export default function PurchaseOrders() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal recibir compra → genera el gasto */}
+      {receiving && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div>
+                <h2 className="font-semibold text-white">Recibir compra</h2>
+                <p className="text-xs text-gray-500">{receiving.orderNumber} · {receiving.supplier}</p>
+              </div>
+              <button onClick={() => setReceiving(null)} className="text-gray-400 hover:text-gray-100"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-800/60 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 mb-1">Se registrará como gasto de la empresa</p>
+                <p className="text-2xl font-bold text-white">{currency(Number(receiving.totalCost))}</p>
+              </div>
+              <div>
+                <label className="label">¿Con qué se pagó?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ["EFECTIVO_MP", "Efectivo / MP"],
+                    ["VISA", "Tarjeta Visa"],
+                    ["MASTER", "Tarjeta Master"],
+                    ["PAPA", "Tarjeta Papá"],
+                    ["OTRO", "Otro"],
+                  ].map(([v, l]) => (
+                    <button key={v} onClick={() => setPaySource(v)}
+                      className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        paySource === v ? "bg-white text-gray-950 border-white" : "bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-500"
+                      }`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                El gasto va a aparecer en la sección Gastos y va a impactar en el balance del mes.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button onClick={() => setReceiving(null)} className="btn-secondary flex-1 justify-center">Cancelar</button>
+              <button onClick={() => receiveMutation.mutate({ id: receiving.id, paymentSource: paySource })}
+                disabled={receiveMutation.isPending} className="btn-primary flex-1 justify-center">
+                {receiveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                Recibir y registrar
+              </button>
+            </div>
           </div>
         </div>
       )}

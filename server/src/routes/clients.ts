@@ -18,25 +18,70 @@ router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const clients = await prisma.client.findMany({
     where: { deletedAt: null },
     include: {
-      _count: { select: { sales: true, quotes: true } },
+      _count: { select: { quotes: true, fichas: true } },
+      // todas las ventas para poder sumar el total comprado
       sales: {
+        where: { deletedAt: null },
         select: { totalRevenue: true, createdAt: true },
         orderBy: { createdAt: "desc" },
-        take: 1,
+      },
+      fichas: {
+        where: { deletedAt: null },
+        select: { total: true, deposit: true },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  const result = clients.map((c) => ({
-    ...c,
-    totalPurchases: c.sales.reduce((acc, s) => acc + Number(s.totalRevenue), 0),
-    lastPurchase: c.sales[0]?.createdAt ?? null,
-    salesCount: c._count.sales,
-    quotesCount: c._count.quotes,
-  }));
+  const result = clients.map((c) => {
+    const { sales, fichas, _count, ...rest } = c;
+    return {
+      ...rest,
+      totalPurchases: sales.reduce((acc, s) => acc + Number(s.totalRevenue), 0),
+      lastPurchase: sales[0]?.createdAt ?? null,
+      salesCount: sales.length,
+      quotesCount: _count.quotes,
+      fichasCount: _count.fichas,
+      // saldo que el cliente todavía debe (de sus pedidos)
+      saldoPendiente: fichas.reduce((acc, f) => acc + Math.max(0, Number(f.total) - Number(f.deposit)), 0),
+    };
+  });
 
   res.json(result);
+});
+
+// Ficha 360° del cliente: sus pedidos, ventas y presupuestos
+router.get("/:id/detalle", async (req: AuthRequest, res: Response): Promise<void> => {
+  const client = await prisma.client.findUnique({ where: { id: req.params.id } });
+  if (!client) { res.status(404).json({ error: "Cliente no encontrado" }); return; }
+
+  const [fichas, sales, quotes] = await Promise.all([
+    prisma.fichaPedido.findMany({
+      where: { clientId: req.params.id, deletedAt: null },
+      select: { id: true, fichaNumber: true, date: true, total: true, deposit: true, items: true, deliveredAt: true, estimatedDate: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.sale.findMany({
+      where: { clientId: req.params.id, deletedAt: null },
+      select: { id: true, saleNumber: true, createdAt: true, totalRevenue: true, paymentStatus: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.quote.findMany({
+      where: { clientId: req.params.id, deletedAt: null },
+      select: { id: true, quoteNumber: true, createdAt: true, totalAmount: true, status: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  res.json({
+    client,
+    fichas, sales, quotes,
+    totales: {
+      comprado: sales.reduce((s, x) => s + Number(x.totalRevenue), 0),
+      pedidos: fichas.length,
+      saldoPendiente: fichas.reduce((s, f) => s + Math.max(0, Number(f.total) - Number(f.deposit)), 0),
+    },
+  });
 });
 
 router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {

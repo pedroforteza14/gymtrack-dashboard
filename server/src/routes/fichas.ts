@@ -9,6 +9,7 @@ const router = Router();
 const itemSchema = z.object({ cantidad: z.number().int().min(0), producto: z.string() });
 
 const fichaSchema = z.object({
+  clientId: z.string().optional().nullable(),
   clientName: z.string().min(1),
   clientPhone: z.string().optional(),
   clientLocation: z.string().optional(),
@@ -48,7 +49,10 @@ function toData(input: Record<string, unknown>) {
 router.get("/", authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
   const fichas = await prisma.fichaPedido.findMany({
     where: { deletedAt: null },
-    include: { payments: { orderBy: { date: "asc" } } },
+    include: {
+      payments: { orderBy: { date: "asc" } },
+      client: { select: { id: true, name: true, phone: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
   res.json(fichas);
@@ -107,11 +111,32 @@ router.delete("/:id/payments/:paymentId", authMiddleware, async (req: AuthReques
   res.json({ ok: true });
 });
 
+// Vincula la ficha a un cliente: usa el id recibido, o busca uno con el mismo
+// nombre, o lo crea. Así los pedidos aparecen en la ficha del cliente.
+async function resolveClientId(data: { clientId?: string | null; clientName: string; clientPhone?: string | null }): Promise<string | null> {
+  if (data.clientId) return data.clientId;
+  const nombre = data.clientName?.trim();
+  if (!nombre) return null;
+  const existente = await prisma.client.findFirst({
+    where: { name: { equals: nombre, mode: "insensitive" }, deletedAt: null },
+    select: { id: true },
+  });
+  if (existente) return existente.id;
+  const creado = await prisma.client.create({
+    data: { name: nombre, phone: data.clientPhone || null },
+    select: { id: true },
+  });
+  return creado.id;
+}
+
 router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = fichaSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const fichaNumber = await generateFichaNumber();
-  const ficha = await prisma.fichaPedido.create({ data: { fichaNumber, ...toData(parsed.data) } as never });
+  const clientId = await resolveClientId(parsed.data);
+  const ficha = await prisma.fichaPedido.create({
+    data: { fichaNumber, ...toData({ ...parsed.data, clientId }) } as never,
+  });
   res.status(201).json(ficha);
 });
 
@@ -131,6 +156,7 @@ async function syncSaleForFicha(fichaId: string): Promise<void> {
       data: {
         saleNumber: `PED-${ficha.fichaNumber}`,
         fichaId: ficha.id,
+        clientId: ficha.clientId,
         totalRevenue: ficha.total,
         totalCost: 0,
         totalProfit: ficha.total,
