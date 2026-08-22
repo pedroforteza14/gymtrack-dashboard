@@ -18,6 +18,8 @@ const createQuoteSchema = z.object({
   items: z.array(quoteItemSchema).min(1),
   notes: z.string().optional(),
   validDays: z.number().int().positive().optional().default(15),
+  cashDiscount: z.number().min(0).max(90).optional().default(15),
+  installments: z.number().int().min(1).max(24).optional().default(6),
 });
 
 async function generateQuoteNumber(): Promise<string> {
@@ -52,7 +54,7 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createQuoteSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
-  const { clientId, items, notes, validDays } = parsed.data;
+  const { clientId, items, notes, validDays, cashDiscount, installments } = parsed.data;
 
   const productIds = items.map((i) => i.productId);
   const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
@@ -77,6 +79,8 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       clientId: clientId || null,
       notes,
       validDays,
+      cashDiscount,
+      installments,
       totalAmount,
       items: { create: quoteItemsData },
     },
@@ -104,6 +108,8 @@ router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> 
   const parsed = z.object({
     notes: z.string().optional(),
     validDays: z.number().int().positive().optional(),
+    cashDiscount: z.number().min(0).max(90).optional(),
+    installments: z.number().int().min(1).max(24).optional(),
   }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const quote = await prisma.quote.update({
@@ -137,6 +143,8 @@ router.get("/:id/pdf", async (req: AuthRequest, res: Response): Promise<void> =>
     notes: quote.notes,
     client: quote.client,
     totalAmount: Number(quote.totalAmount),
+    cashDiscount: Number(quote.cashDiscount),
+    installments: quote.installments,
     items: quote.items.map((i) => ({
       name: i.product.name,
       sku: i.product.sku,

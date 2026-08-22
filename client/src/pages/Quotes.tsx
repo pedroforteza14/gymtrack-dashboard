@@ -14,7 +14,7 @@ interface Client { id: string; name: string; }
 interface QuoteItem { productId: string; quantity: number; unitPrice: number; product?: { name: string; sku: string }; subtotal?: number; }
 interface Quote {
   id: string; quoteNumber: string; status: string; totalAmount: number;
-  createdAt: string; validDays: number; notes?: string;
+  createdAt: string; validDays: number; notes?: string; cashDiscount?: number; installments?: number;
   client?: { name: string; phone?: string } | null;
   items: QuoteItem[];
 }
@@ -40,6 +40,8 @@ export default function Quotes() {
   const [clientId, setClientId] = useState("");
   const [notes, setNotes] = useState("");
   const [validDays, setValidDays] = useState(15);
+  const [cashDiscount, setCashDiscount] = useState(15);
+  const [installments, setInstallments] = useState(6);
   const [items, setItems] = useState<{ productId: string; quantity: number; unitPrice: number }[]>([]);
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
@@ -58,7 +60,7 @@ export default function Quotes() {
   });
 
   const createMut = useMutation({
-    mutationFn: () => api.post("/quotes", { clientId: clientId || undefined, items, notes, validDays }).then((r) => r.data),
+    mutationFn: () => api.post("/quotes", { clientId: clientId || undefined, items, notes, validDays, cashDiscount, installments }).then((r) => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Presupuesto creado"); resetForm(); },
   });
 
@@ -101,7 +103,7 @@ export default function Quotes() {
     },
   });
 
-  const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setItems([]); };
+  const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setCashDiscount(15); setInstallments(6); setItems([]); };
 
   const addItem = () => setItems([...items, { productId: "", quantity: 1, unitPrice: 0 }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
@@ -313,6 +315,52 @@ export default function Quotes() {
                   <input type="number" value={validDays} onChange={(e) => setValidDays(Number(e.target.value))} min={1}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
                 </div>
+              </div>
+
+              {/* Formas de pago */}
+              <div>
+                <label className="text-xs text-gray-400 mb-2 block">Formas de pago (salen en el PDF)</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[11px] text-gray-500 mb-1 block">% OFF efectivo / transferencia</label>
+                    <input type="number" value={cashDiscount} onChange={(e) => setCashDiscount(Number(e.target.value))} min={0} max={90}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 mb-1 block">Cuotas sin interés</label>
+                    <select value={installments} onChange={(e) => setInstallments(Number(e.target.value))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400">
+                      <option value={1}>Sin cuotas</option>
+                      <option value={3}>Hasta 3 cuotas</option>
+                      <option value={6}>Hasta 6 cuotas</option>
+                      <option value={12}>Hasta 12 cuotas</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Preview de lo que verá el cliente */}
+                {total > 0 && (cashDiscount > 0 || installments > 1) && (
+                  <div className="mt-3 space-y-1.5">
+                    {cashDiscount > 0 && (
+                      <div className="flex items-center justify-between bg-white text-gray-950 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-sm font-bold">Efectivo o transferencia</p>
+                          <p className="text-[11px] opacity-70">{cashDiscount}% OFF · ahorra {currency(total * cashDiscount / 100)}</p>
+                        </div>
+                        <span className="text-base font-bold">{currency(total * (1 - cashDiscount / 100))}</span>
+                      </div>
+                    )}
+                    {installments > 1 && (installments >= 6 ? [3, installments] : [installments]).map((n) => (
+                      <div key={n} className="flex items-center justify-between bg-gray-800/60 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-200">{n} cuotas sin interés</p>
+                          <p className="text-[11px] text-gray-500">{n} × {currency(total / n)}</p>
+                        </div>
+                        <span className="text-sm font-medium text-gray-300">{currency(total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Items */}

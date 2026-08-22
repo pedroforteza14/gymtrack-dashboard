@@ -165,6 +165,9 @@ model Quote {
   validDays   Int         @default(15)
   status      QuoteStatus @default(DRAFT)
   totalAmount Decimal     @db.Decimal(10, 2)
+  // Formas de pago que se muestran en el PDF
+  cashDiscount Decimal    @default(15) @db.Decimal(5, 2) // % OFF en efectivo/transferencia
+  installments Int        @default(6)                    // cuotas sin interés
   deletedAt   DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt

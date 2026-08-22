@@ -21,6 +21,8 @@ interface QuoteData {
   client?: { name: string; email?: string | null; phone?: string | null; address?: string | null } | null;
   items: QuoteItem[];
   totalAmount: number;
+  cashDiscount?: number;  // % OFF en efectivo/transferencia
+  installments?: number;  // cuotas sin interés
 }
 
 // Paleta monocromática (marca The Promise Machine)
@@ -137,7 +139,56 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
   doc.rect(tx, y, tw, 42).fill(INK);
   doc.fontSize(10).fillColor("#a1a1aa").font("Helvetica-Bold").text("TOTAL", tx + 16, y + 15, { characterSpacing: 1 });
   doc.fontSize(17).fillColor("#ffffff").font("Helvetica-Bold").text(formatARS(quote.totalAmount), tx + 16, y + 12, { width: tw - 32, align: "right" });
-  y += 42 + 24;
+  y += 42 + 22;
+
+  // ── Formas de pago ───────────────────────────────────────
+  const desc = quote.cashDiscount ?? 0;
+  const cuotas = quote.installments ?? 0;
+  if (desc > 0 || cuotas > 1) {
+    doc.fontSize(8).fillColor(MUTED).font("Helvetica-Bold").text("FORMAS DE PAGO", L, y, { characterSpacing: 0.5 });
+    y += 14;
+
+    const opciones: { label: string; sub: string; monto: string; destacado: boolean }[] = [];
+
+    if (desc > 0) {
+      const conDesc = quote.totalAmount * (1 - desc / 100);
+      opciones.push({
+        label: "Efectivo o transferencia",
+        sub: `${desc}% OFF · ahorrás ${formatARS(quote.totalAmount - conDesc)}`,
+        monto: formatARS(conDesc),
+        destacado: true,
+      });
+    }
+    if (cuotas > 1) {
+      // 3 cuotas (si aplica) y el máximo configurado
+      const planes = cuotas >= 6 ? [3, cuotas] : [cuotas];
+      for (const n of planes) {
+        opciones.push({
+          label: `${n} cuotas sin interés`,
+          sub: `${n} × ${formatARS(quote.totalAmount / n)}`,
+          monto: formatARS(quote.totalAmount),
+          destacado: false,
+        });
+      }
+    }
+
+    const rowH = 30;
+    opciones.forEach((o) => {
+      if (o.destacado) {
+        doc.roundedRect(L, y, W, rowH, 5).fill(INK);
+      } else {
+        doc.lineWidth(0.8).strokeColor(LINE).roundedRect(L, y, W, rowH, 5).stroke();
+      }
+      const txtColor = o.destacado ? "#ffffff" : INK;
+      const subColor = o.destacado ? "#a1a1aa" : MUTED;
+      doc.fontSize(10).fillColor(txtColor).font("Helvetica-Bold").text(o.label, L + 12, y + 7);
+      doc.fontSize(8).fillColor(subColor).font("Helvetica").text(o.sub, L + 12, y + 19);
+      doc.fontSize(13).fillColor(txtColor).font("Helvetica-Bold")
+        .text(o.monto, R - 172, y + 9, { width: 160, align: "right" });
+      y += rowH + 6;
+    });
+    y += 12;
+  }
 
   // ── Notas / modificaciones ───────────────────────────────
   if (quote.notes && quote.notes.trim()) {
