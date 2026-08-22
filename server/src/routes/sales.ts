@@ -144,6 +144,75 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   res.status(201).json(sale);
 });
 
+// Editar una venta completa (productos, cliente, fecha, pago, notas)
+router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = createSaleSchema.partial().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { items, notes, clientId, paymentMethod, paymentStatus, pendingAmount, date } = parsed.data;
+
+  const existing = await prisma.sale.findUnique({ where: { id: req.params.id } });
+  if (!existing) { res.status(404).json({ error: "Venta no encontrada" }); return; }
+
+  const data: Record<string, unknown> = {};
+  if (notes !== undefined) data.notes = notes || null;
+  if (clientId !== undefined) data.clientId = clientId || null;
+  if (paymentMethod !== undefined) data.paymentMethod = paymentMethod || null;
+  if (paymentStatus !== undefined) data.paymentStatus = paymentStatus;
+  if (pendingAmount !== undefined) data.pendingAmount = pendingAmount;
+  if (date) data.createdAt = new Date(date + "T12:00:00");
+
+  // Si vienen items, se reemplazan y se recalculan los totales
+  if (items && items.length > 0) {
+    const productIds = items.map((i) => i.productId);
+    const products = await prisma.product.findMany({ where: { id: { in: productIds }, active: true } });
+    for (const item of items) {
+      if (!products.find((p) => p.id === item.productId)) {
+        res.status(400).json({ error: "Alguno de los productos no existe" });
+        return;
+      }
+    }
+
+    let totalCost = 0, totalRevenue = 0;
+    const saleItemsData = items.map((item) => {
+      const product = products.find((p) => p.id === item.productId)!;
+      const unitCost = Number(product.costPrice);
+      const subtotal = item.unitPrice * item.quantity;
+      const cost = unitCost * item.quantity;
+      totalRevenue += subtotal;
+      totalCost += cost;
+      return { productId: item.productId, quantity: item.quantity, unitCost, unitPrice: item.unitPrice, subtotal, profit: subtotal - cost };
+    });
+
+    data.totalCost = totalCost;
+    data.totalRevenue = totalRevenue;
+    data.totalProfit = totalRevenue - totalCost;
+
+    const sale = await prisma.$transaction(async (tx) => {
+      await tx.saleItem.deleteMany({ where: { saleId: req.params.id } });
+      return tx.sale.update({
+        where: { id: req.params.id },
+        data: { ...data, items: { create: saleItemsData } },
+        include: {
+          client: { select: { id: true, name: true } },
+          items: { include: { product: { select: { name: true, sku: true } } } },
+        },
+      });
+    });
+    res.json(sale);
+    return;
+  }
+
+  const sale = await prisma.sale.update({
+    where: { id: req.params.id },
+    data,
+    include: {
+      client: { select: { id: true, name: true } },
+      items: { include: { product: { select: { name: true, sku: true } } } },
+    },
+  });
+  res.json(sale);
+});
+
 // Actualizar el estado de cobro de una venta (usado desde Cobros)
 router.put("/:id/payment", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = z.object({

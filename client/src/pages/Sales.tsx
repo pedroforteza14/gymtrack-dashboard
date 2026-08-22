@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User, Download } from "lucide-react";
+import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User, Download, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { Skeleton } from "../components/Skeleton";
 import { api } from "../lib/api";
@@ -16,7 +16,7 @@ interface Sale {
   paymentMethod?: string; paymentStatus: string; pendingAmount?: number;
   totalCost: number; totalRevenue: number; totalProfit: number; createdAt: string;
   client?: { id: string; name: string } | null;
-  items: { id: string; quantity: number; unitPrice: number; unitCost: number; subtotal: number; profit: number; product: { name: string; sku: string } }[];
+  items: { id: string; productId: string; quantity: number; unitPrice: number; unitCost: number; subtotal: number; profit: number; product: { name: string; sku: string } }[];
 }
 
 const PAYMENT_LABELS: Record<string, string> = { CASH: "Efectivo", TRANSFER: "Transferencia", INSTALLMENTS: "Cuotas", OTHER: "Otro" };
@@ -53,6 +53,7 @@ export default function Sales() {
   const [page, setPage]         = useState(1);
   const [modalOpen, setModal]   = useState(false);
   const [detail, setDetail]     = useState<Sale | null>(null);
+  const [editId, setEditId]     = useState<string | null>(null);
 
   // Filtros
   const [filterClient, setFilterClient] = useState("");
@@ -95,8 +96,8 @@ export default function Sales() {
   });
 
   const createSale = useMutation({
-    mutationFn: () =>
-      api.post("/sales", {
+    mutationFn: () => {
+      const payload = {
         items,
         notes: notes || undefined,
         clientId: clientId || undefined,
@@ -104,13 +105,15 @@ export default function Sales() {
         paymentStatus,
         pendingAmount: pendingAmount ? Number(pendingAmount) : undefined,
         date: saleDate || undefined,
-      }),
+      };
+      return editId ? api.put(`/sales/${editId}`, payload) : api.post("/sales", payload);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sales"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
-      toast.success("Venta registrada 🎉");
+      toast.success(editId ? "Venta actualizada ✓" : "Venta registrada 🎉");
       closeModal();
     },
     onError: (e: any) => setSaleError(e.response?.data?.error ?? "Error al crear venta"),
@@ -149,9 +152,27 @@ export default function Sales() {
   function removeItem(idx: number) { setItems(items.filter((_, i) => i !== idx)); }
 
   function closeModal() {
-    setModal(false); setItems([]); setNotes(""); setClientId("");
+    setModal(false); setEditId(null); setItems([]); setNotes(""); setClientId("");
     setPaymentMethod(""); setPaymentStatus("PAID"); setPendingAmount("");
     setSaleDate(new Date().toISOString().slice(0, 10)); setSaleError("");
+  }
+
+  function openEdit(sale: Sale) {
+    setEditId(sale.id);
+    setItems(sale.items.map((i) => ({
+      productId: i.productId ?? activeProducts.find((p) => p.name === i.product.name)?.id ?? "",
+      quantity: i.quantity,
+      unitPrice: Number(i.unitPrice),
+    })));
+    setNotes(sale.notes ?? "");
+    setClientId(sale.client?.id ?? "");
+    setPaymentMethod(sale.paymentMethod ?? "");
+    setPaymentStatus(sale.paymentStatus ?? "PAID");
+    setPendingAmount(sale.pendingAmount ? String(sale.pendingAmount) : "");
+    setSaleDate(sale.createdAt.slice(0, 10));
+    setSaleError("");
+    setDetail(null);
+    setModal(true);
   }
 
   function clearFilters() {
@@ -329,15 +350,20 @@ export default function Sales() {
                     </td>
                     <td className="px-4 py-4 text-right text-gray-400">{dateLong(sale.createdAt)}</td>
                     <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => {
-                          if (confirm(`¿Anular venta ${sale.saleNumber}? Se restaurará el stock.`))
-                            deleteSale.mutate(sale.id);
-                        }}
-                        className="btn-danger"
-                      >
-                        Anular
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => openEdit(sale)} className="btn-secondary flex items-center gap-1">
+                          <Pencil size={12} /> Editar
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`¿Anular venta ${sale.saleNumber}?`))
+                              deleteSale.mutate(sale.id);
+                          }}
+                          className="btn-danger"
+                        >
+                          Anular
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -375,7 +401,7 @@ export default function Sales() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
-              <h2 className="font-semibold text-white">Nueva venta</h2>
+              <h2 className="font-semibold text-white">{editId ? "Editar venta" : "Nueva venta"}</h2>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-100"><X size={20} /></button>
             </div>
 
@@ -536,7 +562,7 @@ export default function Sales() {
                 className="btn-primary flex-1 justify-center"
               >
                 {createSale.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-                Confirmar venta
+                {editId ? "Guardar cambios" : "Confirmar venta"}
               </button>
             </div>
           </div>
@@ -605,6 +631,10 @@ export default function Sales() {
                 <div className="flex justify-between"><span className="text-gray-400">Fecha</span><span className="text-gray-300">{dateLong(detail.createdAt)}</span></div>
                 {detail.notes && <div className="flex justify-between"><span className="text-gray-400">Notas</span><span className="text-gray-300">{detail.notes}</span></div>}
               </div>
+
+              <button onClick={() => openEdit(detail)} className="btn-primary w-full flex items-center justify-center gap-2">
+                <Pencil size={14} /> Editar esta venta
+              </button>
             </div>
           </div>
         </div>
