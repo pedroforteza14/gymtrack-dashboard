@@ -19,6 +19,7 @@ const createSaleSchema = z.object({
   paymentMethod: z.enum(["CASH", "TRANSFER", "INSTALLMENTS", "OTHER"]).optional(),
   paymentStatus: z.enum(["PAID", "PENDING", "PARTIAL"]).default("PAID"),
   pendingAmount: z.number().min(0).optional(),
+  date: z.string().optional(), // fecha real de la venta (para cargas retroactivas)
 });
 
 async function generateSaleNumber(): Promise<string> {
@@ -78,7 +79,7 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createSaleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
-  const { items, notes, clientId, paymentMethod, paymentStatus, pendingAmount } = parsed.data;
+  const { items, notes, clientId, paymentMethod, paymentStatus, pendingAmount, date } = parsed.data;
 
   // Trabajo a pedido: no se controla stock. Solo validamos que el producto exista.
   const productIds = items.map((i) => i.productId);
@@ -128,6 +129,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
         paymentStatus,
         ...(pendingAmount !== undefined ? { pendingAmount } : {}),
         ...(clientId ? { clientId } : {}),
+        ...(date ? { createdAt: new Date(date + "T12:00:00") } : {}),
         items: { create: saleItemsData },
       },
       include: {

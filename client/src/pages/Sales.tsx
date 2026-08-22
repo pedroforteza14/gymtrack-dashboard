@@ -67,6 +67,7 @@ export default function Sales() {
   const [paymentMethod,  setPaymentMethod]  = useState("");
   const [paymentStatus,  setPaymentStatus]  = useState("PAID");
   const [pendingAmount,  setPendingAmount]  = useState("");
+  const [saleDate,       setSaleDate]       = useState(new Date().toISOString().slice(0, 10));
   const [saleError,      setSaleError]      = useState("");
 
   // Query key incluye filtros
@@ -102,6 +103,7 @@ export default function Sales() {
         paymentMethod: paymentMethod || undefined,
         paymentStatus,
         pendingAmount: pendingAmount ? Number(pendingAmount) : undefined,
+        date: saleDate || undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sales"] });
@@ -148,7 +150,8 @@ export default function Sales() {
 
   function closeModal() {
     setModal(false); setItems([]); setNotes(""); setClientId("");
-    setPaymentMethod(""); setPaymentStatus("PAID"); setPendingAmount(""); setSaleError("");
+    setPaymentMethod(""); setPaymentStatus("PAID"); setPendingAmount("");
+    setSaleDate(new Date().toISOString().slice(0, 10)); setSaleError("");
   }
 
   function clearFilters() {
@@ -377,19 +380,32 @@ export default function Sales() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* Cliente */}
-              <div>
-                <label className="label">Cliente (opcional)</label>
-                <select
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  className="input"
-                >
-                  <option value="">Sin cliente asignado</option>
-                  {(clients as Client[]).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+              {/* Fecha + Cliente */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Fecha de la venta</label>
+                  <input
+                    type="date"
+                    value={saleDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setSaleDate(e.target.value)}
+                    className="input"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Podés cargar una venta de un día anterior</p>
+                </div>
+                <div>
+                  <label className="label">Cliente (opcional)</label>
+                  <select
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    className="input"
+                  >
+                    <option value="">Sin cliente asignado</option>
+                    {(clients as Client[]).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Productos */}
