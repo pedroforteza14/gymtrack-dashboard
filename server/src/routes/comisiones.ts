@@ -13,6 +13,10 @@ router.use(cargarUsuario);
 /* ═════════ RESUMEN DE COMISIONES ═════════
    El dueño ve a todos; un vendedor ve sólo lo suyo. */
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role !== "OWNER" && !esVendedor(req)) {
+    res.status(403).json({ error: "No tenés permiso para ver las comisiones" });
+    return;
+  }
   const { desde, hasta, sellerId, estado } = req.query as Record<string, string>;
 
   const where: Record<string, unknown> = {
@@ -167,6 +171,14 @@ router.put("/vendedores/:id", soloDueño, async (req: AuthRequest, res: Response
     password: z.string().min(6).optional(),
   }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const objetivo = await prisma.user.findUnique({
+    where: { id: req.params.id }, select: { role: true },
+  });
+  if (!objetivo || objetivo.role !== "SELLER") {
+    res.status(404).json({ error: "Vendedor no encontrado" });
+    return;
+  }
 
   const data: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) data.name = parsed.data.name;

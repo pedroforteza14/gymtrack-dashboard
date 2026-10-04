@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
-import { cargarUsuario, esVendedor } from "../middleware/roles";
+import { cargarUsuario, esVendedor, soloDueño } from "../middleware/roles";
 import { calcularComision, estaCobrada, avisar, CANAL_CON_COMISION } from "../lib/comisiones";
 
 const router = Router();
@@ -26,6 +26,19 @@ const createSaleSchema = z.object({
   channel: z.enum(["WHATSAPP", "MERCADO_LIBRE", "TIENDA_NUBE", "LOCAL", "OTRO"]).optional(),
   sellerId: z.string().optional(),
 });
+
+/** Un vendedor cobra sobre el total: no necesita ver costos ni márgenes. */
+function segunRol(venta: any, req: AuthRequest) {
+  if (!esVendedor(req) || !venta) return venta;
+  const { totalCost, totalProfit, items, ...resto } = venta;
+  return {
+    ...resto,
+    items: items?.map(({ unitCost, profit, ...i }: any) => ({
+      ...i,
+      product: i.product ? { name: i.product.name, sku: i.product.sku } : undefined,
+    })),
+  };
+}
 
 async function generateSaleNumber(): Promise<string> {
   const count = await prisma.sale.count();
@@ -69,19 +82,20 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     prisma.sale.count({ where }),
   ]);
 
-  res.json({ sales, total, page: parseInt(page), limit: parseInt(limit) });
+  res.json({ sales: sales.map((v) => segunRol(v, req)), total, page: parseInt(page), limit: parseInt(limit) });
 });
 
 router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
-  const sale = await prisma.sale.findUnique({
-    where: { id: req.params.id },
+  const sale = await prisma.sale.findFirst({
+    // un vendedor sólo puede abrir sus propias ventas
+    where: { id: req.params.id, ...(esVendedor(req) ? { sellerId: req.userId } : {}) },
     include: {
       client: { select: { id: true, name: true } },
       items: { include: { product: true } },
     },
   });
   if (!sale) { res.status(404).json({ error: "Venta no encontrada" }); return; }
-  res.json(sale);
+  res.json(segunRol(sale, req));
 });
 
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -174,7 +188,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
     });
   }
 
-  res.status(201).json(sale);
+  res.status(201).json(segunRol(sale, req));
 });
 
 // Editar una venta completa (productos, cliente, fecha, pago, notas)
@@ -185,6 +199,11 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 
   const existing = await prisma.sale.findUnique({ where: { id: req.params.id } });
   if (!existing) { res.status(404).json({ error: "Venta no encontrada" }); return; }
+  // un vendedor sólo edita lo suyo
+  if (esVendedor(req) && existing.sellerId !== req.userId) {
+    res.status(403).json({ error: "Sólo podés editar tus propias ventas" });
+    return;
+  }
 
   const data: Record<string, unknown> = {};
   if (notes !== undefined) data.notes = notes || null;
@@ -193,7 +212,8 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   if (paymentStatus !== undefined) data.paymentStatus = paymentStatus;
   if (pendingAmount !== undefined) data.pendingAmount = pendingAmount;
   if (date) data.createdAt = new Date(date + "T12:00:00");
-  if (parsed.data.channel !== undefined) data.channel = parsed.data.channel;
+  // el canal define si hay comisión: sólo el dueño puede cambiarlo después
+  if (parsed.data.channel !== undefined && !esVendedor(req)) data.channel = parsed.data.channel;
   // sólo el dueño puede reasignar el vendedor de una venta
   if (parsed.data.sellerId !== undefined && !esVendedor(req)) {
     data.sellerId = parsed.data.sellerId || null;
@@ -247,7 +267,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
         },
       });
     });
-    res.json(sale);
+    res.json(segunRol(sale, req));
     return;
   }
 
@@ -263,7 +283,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // Actualizar el estado de cobro de una venta (usado desde Cobros)
-router.put("/:id/payment", async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id/payment", soloDueño, async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = z.object({
     paymentStatus: z.enum(["PAID", "PENDING", "PARTIAL"]).optional(),
     pendingAmount: z.number().min(0).optional(),
@@ -287,7 +307,7 @@ router.put("/:id/payment", async (req: AuthRequest, res: Response): Promise<void
   res.json(sale);
 });
 
-router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", soloDueño, async (req: AuthRequest, res: Response): Promise<void> => {
   const sale = await prisma.sale.findUnique({
     where: { id: req.params.id },
     include: { items: true },
