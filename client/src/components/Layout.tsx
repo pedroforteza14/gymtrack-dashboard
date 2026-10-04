@@ -107,7 +107,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Rol badge */}
         <div className="px-4 pt-3">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium w-full justify-center bg-gray-800 text-gray-300 border border-gray-700">
-            {isMarketing ? "👤 Marketing" : "🏠 Dueño del local"}
+            {isMarketing ? "👤 Marketing" : role === "SELLER" ? "💬 Ventas" : "🏠 Dueño del local"}
           </span>
         </div>
 

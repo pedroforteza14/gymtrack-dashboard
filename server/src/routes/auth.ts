@@ -18,10 +18,16 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: "Datos inválidos" });
     return;
   }
-  const { email, password } = parsed.data;
+  const { password } = parsed.data;
+  // el mail no distingue mayúsculas: "Larita@TPM.com" y "larita@tpm.com" son el mismo
+  const email = parsed.data.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !(await bcrypt.compare(password, user.password))) {
     res.status(401).json({ error: "Credenciales incorrectas" });
+    return;
+  }
+  if (user.active === false) {
+    res.status(403).json({ error: "Tu usuario está desactivado. Hablá con el administrador." });
     return;
   }
   const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
