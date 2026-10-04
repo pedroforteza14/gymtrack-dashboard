@@ -19,10 +19,9 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   }
   const { desde, hasta, sellerId, estado } = req.query as Record<string, string>;
 
-  const where: Record<string, unknown> = {
-    deletedAt: null,
-    commissionStatus: { not: null },
-  };
+  // Las ventas anuladas siguen apareciendo: su comisión hay que descontarla
+  // de la próxima liquidación, así que el dueño tiene que poder verla.
+  const where: Record<string, unknown> = { commissionStatus: { not: null } };
   if (esVendedor(req)) where.sellerId = req.userId;
   else if (sellerId) where.sellerId = sellerId;
   if (estado) where.commissionStatus = estado;
@@ -40,6 +39,7 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
       paymentStatus: true, pendingAmount: true, channel: true,
       commissionRate: true, commissionAmount: true,
       commissionStatus: true, commissionPaidAt: true,
+      deletedAt: true,
       client: { select: { id: true, name: true } },
       seller: { select: { id: true, name: true } },
     },
