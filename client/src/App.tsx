@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
+import Comisiones from "./pages/Comisiones";
 import Clients from "./pages/Clients";
 import Quotes from "./pages/Quotes";
 import AgencyDashboard from "./pages/AgencyDashboard";
@@ -52,9 +53,22 @@ function RoleRedirect() {
 }
 
 // Protege rutas por rol
-function RoleRoute({ role, children }: { role: "OWNER" | "MARKETING"; children: React.ReactNode }) {
+type Rol = "OWNER" | "MARKETING" | "SELLER";
+
+/** Pantalla de inicio de cada rol. */
+function inicioDe(rol: Rol | null): string {
+  if (rol === "MARKETING") return "/ads";
+  if (rol === "SELLER") return "/sales";
+  return "/";
+}
+
+function RoleRoute({ role, children }: { role: Rol | Rol[]; children: React.ReactNode }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
-  if (getRole() !== role) return <Navigate to={getRole() === "MARKETING" ? "/ads" : "/"} replace />;
+  const actual = getRole() as Rol | null;
+  const permitidos = Array.isArray(role) ? role : [role];
+  if (!actual || !permitidos.includes(actual)) {
+    return <Navigate to={inicioDe(actual)} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -81,17 +95,17 @@ export default function App() {
             </RoleRoute>
           } />
           <Route path="/products" element={
-            <RoleRoute role="OWNER">
+            <RoleRoute role={["OWNER", "SELLER"]}>
               <Layout><Products /></Layout>
             </RoleRoute>
           } />
           <Route path="/sales" element={
-            <RoleRoute role="OWNER">
+            <RoleRoute role={["OWNER", "SELLER"]}>
               <Layout><Sales /></Layout>
             </RoleRoute>
           } />
           <Route path="/clients" element={
-            <RoleRoute role="OWNER">
+            <RoleRoute role={["OWNER", "SELLER"]}>
               <Layout><Clients /></Layout>
             </RoleRoute>
           } />
@@ -108,6 +122,11 @@ export default function App() {
           <Route path="/fichas" element={
             <RoleRoute role="OWNER">
               <Layout><Fichas /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/comisiones" element={
+            <RoleRoute role={["OWNER", "SELLER"]}>
+              <Layout><Comisiones /></Layout>
             </RoleRoute>
           } />
           <Route path="/cobros" element={

@@ -1,6 +1,6 @@
 import { api } from "./api";
 
-export type UserRole = "OWNER" | "MARKETING";
+export type UserRole = "OWNER" | "MARKETING" | "SELLER";
 
 export interface User {
   id: string;
@@ -14,6 +14,13 @@ export async function login(email: string, password: string): Promise<User> {
   localStorage.setItem("token", data.token);
   localStorage.setItem("role", data.user.role);
   return data.user;
+}
+
+/** A dónde mandar a cada rol después de entrar. */
+export function inicioSegunRol(role: UserRole): string {
+  if (role === "MARKETING") return "/ads";
+  if (role === "SELLER") return "/sales";
+  return "/";
 }
 
 export function logout() {

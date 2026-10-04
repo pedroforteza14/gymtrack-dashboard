@@ -4,6 +4,7 @@ import { Plus, X, Trash2, Loader2, ChevronLeft, ChevronRight, Filter, User, Down
 import toast from "react-hot-toast";
 import { Skeleton } from "../components/Skeleton";
 import { api } from "../lib/api";
+import { getRole } from "../lib/auth";
 import { currency, pct, dateLong } from "../lib/format";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -69,6 +70,8 @@ export default function Sales() {
   const [paymentStatus,  setPaymentStatus]  = useState("PAID");
   const [pendingAmount,  setPendingAmount]  = useState("");
   const [saleDate,       setSaleDate]       = useState(new Date().toISOString().slice(0, 10));
+  const [channel,        setChannel]        = useState("");
+  const [sellerId,       setSellerId]       = useState("");
   const [saleError,      setSaleError]      = useState("");
 
   // Query key incluye filtros
@@ -95,6 +98,13 @@ export default function Sales() {
     queryFn: () => api.get("/clients").then((r) => r.data),
   });
 
+  const esDueño = getRole() === "OWNER";
+  const { data: vendedores = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["vendedores"],
+    queryFn: () => api.get("/comisiones/vendedores").then((r) => r.data),
+    enabled: esDueño,
+  });
+
   const createSale = useMutation({
     mutationFn: () => {
       const payload = {
@@ -105,6 +115,8 @@ export default function Sales() {
         paymentStatus,
         pendingAmount: pendingAmount ? Number(pendingAmount) : undefined,
         date: saleDate || undefined,
+        channel: channel || undefined,
+        sellerId: sellerId || undefined,
       };
       return editId ? api.put(`/sales/${editId}`, payload) : api.post("/sales", payload);
     },
@@ -155,6 +167,7 @@ export default function Sales() {
     setModal(false); setEditId(null); setItems([]); setNotes(""); setClientId("");
     setPaymentMethod(""); setPaymentStatus("PAID"); setPendingAmount("");
     setSaleDate(new Date().toISOString().slice(0, 10)); setSaleError("");
+    setChannel(""); setSellerId("");
   }
 
   function openEdit(sale: Sale) {
@@ -170,6 +183,8 @@ export default function Sales() {
     setPaymentStatus(sale.paymentStatus ?? "PAID");
     setPendingAmount(sale.pendingAmount ? String(sale.pendingAmount) : "");
     setSaleDate(sale.createdAt.slice(0, 10));
+    setChannel((sale as any).channel ?? "");
+    setSellerId((sale as any).seller?.id ?? "");
     setSaleError("");
     setDetail(null);
     setModal(true);
@@ -419,6 +434,31 @@ export default function Sales() {
                   />
                   <p className="text-[11px] text-gray-500 mt-1">Podés cargar una venta de un día anterior</p>
                 </div>
+
+                <div>
+                  <label className="label">Canal</label>
+                  <select value={channel} onChange={(e) => setChannel(e.target.value)} className="input">
+                    <option value="">Sin especificar</option>
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="MERCADO_LIBRE">Mercado Libre</option>
+                    <option value="TIENDA_NUBE">Tienda Nube</option>
+                    <option value="LOCAL">Local</option>
+                    <option value="OTRO">Otro</option>
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Las de WhatsApp con vendedora asignada generan comisión
+                  </p>
+                </div>
+
+                {esDueño && vendedores.length > 0 && (
+                  <div>
+                    <label className="label">Vendedora (opcional)</label>
+                    <select value={sellerId} onChange={(e) => setSellerId(e.target.value)} className="input">
+                      <option value="">Sin asignar</option>
+                      {vendedores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="label">Cliente (opcional)</label>
                   <select

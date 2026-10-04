@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { login } from "../lib/auth";
+import { login, inicioSegunRol } from "../lib/auth";
 import { Loader2 } from "lucide-react";
 import logo from "../assets/logo.png";
 import shot1 from "../assets/showcase/shot1.webp";
@@ -31,7 +31,7 @@ export default function Login() {
     setError("");
     try {
       const user = await login(data.email, data.password);
-      navigate(user.role === "MARKETING" ? "/ads" : "/");
+      navigate(inicioSegunRol(user.role));
     } catch {
       setError("Email o contraseña incorrectos");
     }

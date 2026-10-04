@@ -8,12 +8,14 @@ import { logout, isAuthenticated, getRole } from "../lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import { getMe } from "../lib/auth";
 import logo from "../assets/logo.png";
+import Avisos from "./Avisos";
 
 const ownerNav = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/products", icon: Package, label: "Productos" },
   { to: "/sales", icon: ShoppingCart, label: "Ventas" },
   { to: "/cobros", icon: Coins, label: "Cobros" },
+  { to: "/comisiones", icon: Coins, label: "Comisiones" },
   { to: "/clients", icon: Users, label: "Clientes" },
   { to: "/quotes", icon: FileText, label: "Presupuestos" },
   { to: "/fichas", icon: ClipboardList, label: "Fichas de pedido" },
@@ -26,6 +28,14 @@ const ownerNav = [
   { to: "/analytics", icon: PieChart, label: "Analytics" },
   { to: "/utilidades", icon: StickyNote, label: "Notas y papelera" },
   { to: "/backup", icon: DatabaseBackup, label: "Backup" },
+];
+
+// La vendedora sólo ve lo que necesita para vender: nada de costos ni plata del negocio
+const sellerNav = [
+  { to: "/sales", icon: ShoppingCart, label: "Mis ventas" },
+  { to: "/comisiones", icon: Coins, label: "Mis comisiones" },
+  { to: "/clients", icon: Users, label: "Clientes" },
+  { to: "/products", icon: Package, label: "Catálogo" },
 ];
 
 const marketingNav = [
@@ -45,7 +55,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
 
-  const navItems = role === "MARKETING" ? marketingNav : ownerNav;
+  const navItems =
+    role === "MARKETING" ? marketingNav :
+    role === "SELLER"    ? sellerNav    : ownerNav;
   const isMarketing = role === "MARKETING";
 
   return (
@@ -60,6 +72,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         ) : (
           <img src={logo} alt="The Promise Machine" className="h-6 object-contain" />
         )}
+        <div className="ml-auto"><Avisos /></div>
       </header>
 
       {/* Backdrop (mobile, cuando el cajón está abierto) */}
@@ -124,6 +137,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* User */}
         <div className="px-3 py-4 border-t border-gray-800">
+          <div className="hidden md:flex justify-end px-3"><Avisos /></div>
           <div className="flex items-center gap-3 px-3 py-2 mb-1">
             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-gray-800 border-gray-700">
               <span className="text-sm font-bold text-white">
