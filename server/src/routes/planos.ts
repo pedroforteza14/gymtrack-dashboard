@@ -5,6 +5,9 @@ import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { cargarUsuario, soloDueño } from "../middleware/roles";
 
 const router = Router();
+router.use(authMiddleware);
+router.use(cargarUsuario);
+router.use(soloDueño);   // los planos son información de fabricación
 
 const STATUSES = ["PENDIENTE", "EN_PROCESO", "HECHO"] as const;
 const MAX_FILE_CHARS = 8_000_000; // ~6 MB en base64
@@ -17,7 +20,7 @@ const planoSelect = {
 } as const;
 
 // ---------- Empleados ----------
-router.get("/employees", authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/employees", async (_req: AuthRequest, res: Response): Promise<void> => {
   const employees = await prisma.employee.findMany({
     where: { active: true },
     orderBy: { name: "asc" },
@@ -25,14 +28,14 @@ router.get("/employees", authMiddleware, async (_req: AuthRequest, res: Response
   res.json(employees);
 });
 
-router.post("/employees", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/employees", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = z.object({ name: z.string().min(1), role: z.string().optional() }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Nombre requerido" }); return; }
   const employee = await prisma.employee.create({ data: parsed.data });
   res.status(201).json(employee);
 });
 
-router.delete("/employees/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/employees/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   await prisma.employee.update({ where: { id: req.params.id }, data: { active: false } });
   res.json({ ok: true });
 });
@@ -47,7 +50,7 @@ const planoSchema = z.object({
   fileData: z.string().optional(), // base64 (sin prefijo data:)
 });
 
-router.get("/", authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const planos = await prisma.plano.findMany({
     orderBy: { createdAt: "desc" },
     select: planoSelect,
@@ -55,7 +58,7 @@ router.get("/", authMiddleware, async (_req: AuthRequest, res: Response): Promis
   res.json(planos);
 });
 
-router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = planoSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { fileData, ...rest } = parsed.data;
@@ -70,7 +73,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promis
   res.status(201).json(plano);
 });
 
-router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = z.object({
     title: z.string().optional(),
     notes: z.string().optional(),
@@ -88,13 +91,13 @@ router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Prom
   res.json(plano);
 });
 
-router.delete("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   await prisma.plano.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 });
 
 // Descargar/ver el archivo del plano (token por query para poder abrirlo en pestaña nueva)
-router.get("/:id/file", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id/file", async (req: AuthRequest, res: Response): Promise<void> => {
   const plano = await prisma.plano.findUnique({ where: { id: req.params.id } });
   if (!plano || !plano.fileData) { res.status(404).json({ error: "Sin archivo" }); return; }
   const buffer = Buffer.from(plano.fileData, "base64");
