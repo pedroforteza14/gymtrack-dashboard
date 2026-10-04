@@ -10,17 +10,22 @@ datasource db {
 enum UserRole {
   OWNER
   MARKETING
+  SELLER
 }
 
 model User {
-  id         String      @id @default(cuid())
-  email      String      @unique
-  password   String
-  name       String
-  role       UserRole    @default(OWNER)
-  adAccounts AdAccount[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id             String      @id @default(cuid())
+  email          String      @unique
+  password       String
+  name           String
+  role           UserRole    @default(OWNER)
+  active         Boolean     @default(true)
+  // % propio del vendedor; si es null se usa el global de Setting
+  commissionRate Decimal?    @db.Decimal(5, 2)
+  salesMade      Sale[]      @relation("VentasDelVendedor")
+  adAccounts     AdAccount[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }
 
 model AdAccount {
@@ -115,22 +120,33 @@ model Product {
 }
 
 model Sale {
-  id            String     @id @default(cuid())
-  saleNumber    String     @unique
-  clientId      String?
-  client        Client?    @relation(fields: [clientId], references: [id])
-  notes         String?
-  meliOrderId   String?    @unique
-  fichaId       String?    @unique
-  paymentMethod String?
-  paymentStatus String     @default("PAID")
-  pendingAmount Decimal?   @db.Decimal(10, 2)
-  items         SaleItem[]
-  totalCost     Decimal    @db.Decimal(10, 2)
-  totalRevenue  Decimal    @db.Decimal(10, 2)
-  totalProfit   Decimal    @db.Decimal(10, 2)
-  deletedAt     DateTime?
-  createdAt     DateTime   @default(now())
+  id               String     @id @default(cuid())
+  saleNumber       String     @unique
+  clientId         String?
+  client           Client?    @relation(fields: [clientId], references: [id])
+  notes            String?
+  meliOrderId      String?    @unique
+  fichaId          String?    @unique
+  paymentMethod    String?
+  paymentStatus    String     @default("PAID")
+  // canal por el que entró: WHATSAPP | MERCADO_LIBRE | TIENDA_NUBE | LOCAL | OTRO
+  channel          String?
+  // quién la vendió (para comisiones)
+  sellerId         String?
+  seller           User?      @relation("VentasDelVendedor", fields: [sellerId], references: [id])
+  // el % queda congelado al crear la venta: si después cambia, las viejas no se tocan
+  commissionRate   Decimal?   @db.Decimal(5, 2)
+  commissionAmount Decimal?   @db.Decimal(10, 2)
+  // EN_PROCESO (falta cobrar) | A_PAGAR (cobrada) | PAGADA | ANULADA
+  commissionStatus String?
+  commissionPaidAt DateTime?
+  pendingAmount    Decimal?   @db.Decimal(10, 2)
+  items            SaleItem[]
+  totalCost        Decimal    @db.Decimal(10, 2)
+  totalRevenue     Decimal    @db.Decimal(10, 2)
+  totalProfit      Decimal    @db.Decimal(10, 2)
+  deletedAt        DateTime?
+  createdAt        DateTime   @default(now())
 }
 
 model MeliToken {
@@ -395,4 +411,24 @@ model Note {
   done      Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Ajustes editables desde el panel de administración
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Avisos para el dueño (por ejemplo: venta cargada por un vendedor)
+model Notification {
+  id        String   @id @default(cuid())
+  type      String // VENTA_VENDEDOR | COMISION | OTRO
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
 }

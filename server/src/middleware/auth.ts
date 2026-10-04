@@ -3,6 +3,14 @@ import jwt from "jsonwebtoken";
 
 export interface AuthRequest extends Request {
   userId?: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    active: boolean;
+    commissionRate: unknown;
+  };
 }
 
 export function authMiddleware(

@@ -20,6 +20,8 @@ import expensesRouter from "./routes/expenses";
 import planosRouter from "./routes/planos";
 import fichasRouter from "./routes/fichas";
 import backupRouter from "./routes/backup";
+import comisionesRouter from "./routes/comisiones";
+import notificacionesRouter from "./routes/notificaciones";
 import materialsRouter from "./routes/materials";
 import extrasRouter from "./routes/extras";
 import { syncAllMetrics } from "./lib/syncMetrics";
@@ -52,6 +54,8 @@ app.use("/api/planos", planosRouter);
 app.use("/api/fichas", fichasRouter);
 app.use("/api/backup", backupRouter);
 app.use("/api/materials", materialsRouter);
+app.use("/api/comisiones", comisionesRouter);
+app.use("/api/notificaciones", notificacionesRouter);
 app.use("/api/extras", extrasRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));

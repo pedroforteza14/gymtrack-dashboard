@@ -2,9 +2,12 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { cargarUsuario, soloDueño } from "../middleware/roles";
 
 const router = Router();
 router.use(authMiddleware);
+router.use(cargarUsuario);
+router.use(soloDueño);   // información sensible del negocio
 
 // Un item puede ser un producto del catálogo o un material suelto (descripción libre)
 const itemSchema = z.object({

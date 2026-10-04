@@ -1,9 +1,12 @@
 import { Router, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { cargarUsuario, soloDueño } from "../middleware/roles";
 
 const router = Router();
 router.use(authMiddleware);
+router.use(cargarUsuario);
+router.use(soloDueño);   // información sensible del negocio
 
 // Backup completo del negocio (sin datos sensibles: no incluye contraseñas ni tokens)
 router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {

@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { cargarUsuario, soloDueño } from "../middleware/roles";
 
 const router = Router();
 

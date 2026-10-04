@@ -2,9 +2,12 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { cargarUsuario, esVendedor } from "../middleware/roles";
+import { calcularComision, estaCobrada, avisar, CANAL_CON_COMISION } from "../lib/comisiones";
 
 const router = Router();
 router.use(authMiddleware);
+router.use(cargarUsuario);
 
 const saleItemSchema = z.object({
   productId: z.string(),
@@ -20,6 +23,8 @@ const createSaleSchema = z.object({
   paymentStatus: z.enum(["PAID", "PENDING", "PARTIAL"]).default("PAID"),
   pendingAmount: z.number().min(0).optional(),
   date: z.string().optional(), // fecha real de la venta (para cargas retroactivas)
+  channel: z.enum(["WHATSAPP", "MERCADO_LIBRE", "TIENDA_NUBE", "LOCAL", "OTRO"]).optional(),
+  sellerId: z.string().optional(),
 });
 
 async function generateSaleNumber(): Promise<string> {
@@ -39,6 +44,8 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   const where: Record<string, unknown> = { deletedAt: null };
+  // un vendedor sólo puede ver sus propias ventas
+  if (esVendedor(req)) where.sellerId = req.userId;
   if (clientId)           where.clientId  = clientId;
   if (dateFrom || dateTo) {
     where.createdAt = {
@@ -52,6 +59,7 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
       where,
       include: {
         client: { select: { id: true, name: true } },
+        seller: { select: { id: true, name: true } },
         items: { include: { product: { select: { name: true, sku: true } } } },
       },
       orderBy: { createdAt: "desc" },
@@ -80,6 +88,10 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createSaleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { items, notes, clientId, paymentMethod, paymentStatus, pendingAmount, date } = parsed.data;
+  // Un vendedor siempre se asigna a sí mismo; el dueño puede elegir a quién asignársela.
+  const sellerId = esVendedor(req) ? req.userId! : (parsed.data.sellerId || null);
+  // Si la carga un vendedor, el canal es WhatsApp salvo que diga otra cosa.
+  const channel = parsed.data.channel ?? (esVendedor(req) ? CANAL_CON_COMISION : null);
 
   // Trabajo a pedido: no se controla stock. Solo validamos que el producto exista.
   const productIds = items.map((i) => i.productId);
@@ -117,6 +129,10 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
   const totalProfit = totalRevenue - totalCost;
 
+  const comision = await calcularComision({
+    channel, sellerId, total: totalRevenue, paymentStatus, pendingAmount,
+  });
+
   const sale = await prisma.$transaction(async (tx) => {
     const newSale = await tx.sale.create({
       data: {
@@ -130,6 +146,9 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
         ...(pendingAmount !== undefined ? { pendingAmount } : {}),
         ...(clientId ? { clientId } : {}),
         ...(date ? { createdAt: new Date(date + "T12:00:00") } : {}),
+        ...(channel ? { channel } : {}),
+        ...(sellerId ? { sellerId } : {}),
+        ...comision,
         items: { create: saleItemsData },
       },
       include: {
@@ -140,6 +159,20 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
     return newSale;
   });
+
+  // Si la cargó un vendedor, le avisamos al dueño
+  if (esVendedor(req)) {
+    const cliente = sale.client?.name ? ` a ${sale.client.name}` : "";
+    await avisar({
+      type: "VENTA_VENDEDOR",
+      title: `Nueva venta de ${req.user?.name ?? "un vendedor"}`,
+      body: `${sale.saleNumber}${cliente} por $${Number(sale.totalRevenue).toLocaleString("es-AR")}` +
+            (comision.commissionAmount
+              ? ` · comisión $${Number(comision.commissionAmount).toLocaleString("es-AR")}`
+              : ""),
+      link: "/sales",
+    });
+  }
 
   res.status(201).json(sale);
 });
@@ -160,6 +193,11 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   if (paymentStatus !== undefined) data.paymentStatus = paymentStatus;
   if (pendingAmount !== undefined) data.pendingAmount = pendingAmount;
   if (date) data.createdAt = new Date(date + "T12:00:00");
+  if (parsed.data.channel !== undefined) data.channel = parsed.data.channel;
+  // sólo el dueño puede reasignar el vendedor de una venta
+  if (parsed.data.sellerId !== undefined && !esVendedor(req)) {
+    data.sellerId = parsed.data.sellerId || null;
+  }
 
   // Si vienen items, se reemplazan y se recalculan los totales
   if (items && items.length > 0) {
@@ -186,6 +224,17 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     data.totalCost = totalCost;
     data.totalRevenue = totalRevenue;
     data.totalProfit = totalRevenue - totalCost;
+
+    const nuevaCom = await calcularComision({
+      channel: (data.channel as string) ?? existing.channel,
+      sellerId: (data.sellerId as string) ?? existing.sellerId,
+      total: totalRevenue,
+      paymentStatus: (data.paymentStatus as string) ?? existing.paymentStatus,
+      pendingAmount: data.pendingAmount ?? existing.pendingAmount,
+      // si ya tenía comisión liquidada no tocamos el % pactado
+      rateExistente: existing.commissionRate != null ? Number(existing.commissionRate) : null,
+    });
+    if (existing.commissionStatus !== "PAGADA") Object.assign(data, nuevaCom);
 
     const sale = await prisma.$transaction(async (tx) => {
       await tx.saleItem.deleteMany({ where: { saleId: req.params.id } });
@@ -220,7 +269,21 @@ router.put("/:id/payment", async (req: AuthRequest, res: Response): Promise<void
     pendingAmount: z.number().min(0).optional(),
   }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
-  const sale = await prisma.sale.update({ where: { id: req.params.id }, data: parsed.data });
+  const antes = await prisma.sale.findUnique({ where: { id: req.params.id } });
+  if (!antes) { res.status(404).json({ error: "Venta no encontrada" }); return; }
+
+  const data: Record<string, unknown> = { ...parsed.data };
+
+  // la comisión sigue al estado de cobro, salvo que ya se haya liquidado
+  if (antes.commissionStatus && antes.commissionStatus !== "PAGADA") {
+    const cobrada = estaCobrada(
+      parsed.data.paymentStatus ?? antes.paymentStatus,
+      parsed.data.pendingAmount ?? antes.pendingAmount
+    );
+    data.commissionStatus = cobrada ? "A_PAGAR" : "EN_PROCESO";
+  }
+
+  const sale = await prisma.sale.update({ where: { id: req.params.id }, data });
   res.json(sale);
 });
 
@@ -233,8 +296,26 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
 
   await prisma.$transaction(async (tx) => {
     await tx.stockMovement.deleteMany({ where: { saleId: sale.id } });
-    await tx.sale.update({ where: { id: sale.id }, data: { deletedAt: new Date() } });
+    await tx.sale.update({
+      where: { id: sale.id },
+      data: {
+        deletedAt: new Date(),
+        // al anular o devolver una venta, su comisión se cae
+        ...(sale.commissionStatus ? { commissionStatus: "ANULADA" } : {}),
+      },
+    });
   });
+
+  // si la comisión ya estaba liquidada, hay que avisar: es plata a descontar
+  if (sale.commissionStatus === "PAGADA") {
+    await avisar({
+      type: "COMISION",
+      title: "Se anuló una venta con comisión ya pagada",
+      body: `${sale.saleNumber} por $${Number(sale.totalRevenue).toLocaleString("es-AR")}. ` +
+            `Hay que descontar $${Number(sale.commissionAmount ?? 0).toLocaleString("es-AR")} de la próxima liquidación.`,
+      link: "/comisiones",
+    });
+  }
 
   res.json({ ok: true });
 });
