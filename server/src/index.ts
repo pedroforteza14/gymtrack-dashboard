@@ -21,6 +21,8 @@ import planosRouter from "./routes/planos";
 import fichasRouter from "./routes/fichas";
 import backupRouter from "./routes/backup";
 import comisionesRouter from "./routes/comisiones";
+import importarRouter from "./routes/importar";
+import metricasRouter from "./routes/metricas";
 import notificacionesRouter from "./routes/notificaciones";
 import materialsRouter from "./routes/materials";
 import extrasRouter from "./routes/extras";
@@ -55,6 +57,8 @@ app.use("/api/fichas", fichasRouter);
 app.use("/api/backup", backupRouter);
 app.use("/api/materials", materialsRouter);
 app.use("/api/comisiones", comisionesRouter);
+app.use("/api/importar", importarRouter);
+app.use("/api/metricas", metricasRouter);
 app.use("/api/notificaciones", notificacionesRouter);
 app.use("/api/extras", extrasRouter);
 
