@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
 import Comisiones from "./pages/Comisiones";
+import Metricas from "./pages/Metricas";
 import Clients from "./pages/Clients";
 import Quotes from "./pages/Quotes";
 import AgencyDashboard from "./pages/AgencyDashboard";
@@ -122,6 +123,11 @@ export default function App() {
           <Route path="/fichas" element={
             <RoleRoute role="OWNER">
               <Layout><Fichas /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/metricas" element={
+            <RoleRoute role="OWNER">
+              <Layout><Metricas /></Layout>
             </RoleRoute>
           } />
           <Route path="/comisiones" element={

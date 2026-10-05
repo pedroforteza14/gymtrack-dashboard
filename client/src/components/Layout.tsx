@@ -25,6 +25,7 @@ const ownerNav = [
   { to: "/compras", icon: ShoppingBag, label: "Compras" },
   { to: "/planos", icon: Ruler, label: "Planos" },
   { to: "/expenses", icon: Wallet, label: "Gastos" },
+  { to: "/metricas", icon: BarChart3, label: "Métricas" },
   { to: "/analytics", icon: PieChart, label: "Analytics" },
   { to: "/utilidades", icon: StickyNote, label: "Notas y papelera" },
   { to: "/backup", icon: DatabaseBackup, label: "Backup" },
