@@ -31,6 +31,7 @@ const filaSchema = z.object({
   canal: z.enum(["WHATSAPP", "MERCADO_LIBRE", "TIENDA_NUBE", "LOCAL", "OTRO"]).optional().nullable(),
   monto: z.number(),
   referencia: z.string().min(1),      // identifica la fila para no duplicarla
+  linea: z.string().optional().nullable(),   // familia, para agrupar en los rankings
 });
 
 function normalizar(s: string): string {
@@ -87,7 +88,7 @@ router.post("/ventas", async (req: AuthRequest, res: Response): Promise<void> =>
               costPrice: 0,
               sellPrice: f.monto,
               active: false,          // no se ofrece, pero queda registrado
-              line: "Importados",
+              line: f.linea || "Importados",
             },
             select: { id: true, name: true, sellPrice: true },
           });
