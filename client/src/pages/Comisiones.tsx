@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Coins, Check, Settings, UserPlus, X, Loader2, AlertTriangle } from "lucide-react";
+import { Coins, Check, Settings, UserPlus, X, Loader2, AlertTriangle, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { getRole } from "../lib/auth";
@@ -56,6 +56,17 @@ export default function Comisiones() {
     },
   });
 
+  const { data: mail } = useQuery<{ configurado: boolean }>({
+    queryKey: ["avisos-mail"],
+    queryFn: () => api.get("/notificaciones/mail").then((r) => r.data),
+    enabled: esDueño,
+  });
+  const probarMail = useMutation({
+    mutationFn: () => api.post("/notificaciones/mail/probar", {}),
+    onSuccess: () => toast.success("Mail de prueba enviado ✓"),
+    onError: (e: any) => toast.error(e.response?.data?.error ?? "No se pudo enviar"),
+  });
+
   const ventas = data?.ventas ?? [];
   const t = data?.totales ?? {};
   const aPagar = ventas.filter((v) => v.commissionStatus === "A_PAGAR");
@@ -97,6 +108,28 @@ export default function Comisiones() {
           );
         })}
       </div>
+
+      {/* Avisos por mail */}
+      {esDueño && (
+        <div className="card p-3 flex items-center gap-3 text-sm flex-wrap">
+          <Mail size={15} className={mail?.configurado ? "text-green-400" : "text-gray-500"} />
+          <span className="text-gray-300 flex-1 min-w-[220px]">
+            {mail?.configurado
+              ? "Te llega un mail por cada venta que cargue un vendedor."
+              : "Los avisos por mail están apagados: hoy sólo aparecen en la campanita."}
+          </span>
+          {mail?.configurado ? (
+            <button onClick={() => probarMail.mutate()} disabled={probarMail.isPending}
+              className="btn-secondary text-xs disabled:opacity-40">
+              {probarMail.isPending ? "Enviando…" : "Enviar prueba"}
+            </button>
+          ) : (
+            <span className="text-xs text-gray-500">
+              Cargá RESEND_API_KEY y AVISOS_PARA en el servidor
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Aviso de comisiones pagadas sobre ventas anuladas */}
       {esDueño && anuladasConPago.length > 0 && (

@@ -112,7 +112,7 @@ export default function Metricas() {
                    tickFormatter={(v) => `${Math.round(v / 1_000_000)}M`} />
             <Tooltip {...tooltipStyle}
               formatter={((v: number) => [currency(v), "Facturado"]) as any} />
-            <Bar dataKey="facturado" fill="#ffffff" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="facturado" fill="#ffffff" radius={[4, 4, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -128,7 +128,7 @@ export default function Metricas() {
             <YAxis stroke="#6b7280" fontSize={11} tickLine={false} axisLine={false}
                    tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
             <Tooltip {...tooltipStyle} formatter={((v: number) => [currency(v), "Ticket"]) as any} />
-            <Line type="monotone" dataKey="ticketPromedio" stroke="#4ade80" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="ticketPromedio" stroke="#4ade80" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -141,7 +141,7 @@ export default function Metricas() {
             <ResponsiveContainer width="50%" height={190}>
               <PieChart>
                 <Pie data={data.porCanal} dataKey="facturado" nameKey="label"
-                     cx="50%" cy="50%" innerRadius={44} outerRadius={76} paddingAngle={2}>
+                     cx="50%" cy="50%" innerRadius={44} outerRadius={76} paddingAngle={2} isAnimationActive={false}>
                   {data.porCanal.map((_, i) => <Cell key={i} fill={COLORES[i % COLORES.length]} />)}
                 </Pie>
                 <Tooltip {...tooltipStyle} formatter={((v: number) => currency(v)) as any} />

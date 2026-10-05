@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { cargarUsuario, esVendedor, soloDueño } from "../middleware/roles";
 import { calcularComision, estaCobrada, avisar, CANAL_CON_COMISION } from "../lib/comisiones";
+import { mailVentaDeVendedor, mailComisionAnulada } from "../lib/avisarPorMail";
 
 const router = Router();
 router.use(authMiddleware);
@@ -176,6 +177,17 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
   // Si la cargó un vendedor, le avisamos al dueño
   if (esVendedor(req)) {
+    // el mail no bloquea la respuesta: si falla, queda el aviso en la campanita
+    void mailVentaDeVendedor({
+      vendedor: req.user?.name ?? "Un vendedor",
+      saleNumber: sale.saleNumber,
+      cliente: sale.client?.name,
+      total: Number(sale.totalRevenue),
+      comision: comision.commissionAmount ? Number(comision.commissionAmount) : null,
+      productos: sale.items.map((i: any) => `${i.product?.name ?? "—"} x${i.quantity}`).join(", ").slice(0, 120),
+      cobrada: estaCobrada(paymentStatus, pendingAmount),
+    });
+
     const cliente = sale.client?.name ? ` a ${sale.client.name}` : "";
     await avisar({
       type: "VENTA_VENDEDOR",
@@ -328,6 +340,11 @@ router.delete("/:id", soloDueño, async (req: AuthRequest, res: Response): Promi
 
   // si la comisión ya estaba liquidada, hay que avisar: es plata a descontar
   if (sale.commissionStatus === "PAGADA") {
+    void mailComisionAnulada({
+      saleNumber: sale.saleNumber,
+      total: Number(sale.totalRevenue),
+      comision: Number(sale.commissionAmount ?? 0),
+    });
     await avisar({
       type: "COMISION",
       title: "Se anuló una venta con comisión ya pagada",
