@@ -18,15 +18,36 @@ const DESDE = process.env.AVISOS_DESDE ?? "The Promise Machine <onboarding@resen
 
 export const mailConfigurado = () => !!API_KEY && PARA.length > 0;
 
+/** Escapa el texto que va al HTML del mail.
+ *  Los nombres de cliente y producto los carga un usuario o vienen de la
+ *  planilla, así que no se pueden interpolar crudos: un nombre con un enlace
+ *  adentro saldría en el mail con la credibilidad del sistema. */
+const esc = (v: unknown): string =>
+  String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 const plata = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+
+/** Sólo deja pasar enlaces http(s); cualquier otra cosa se descarta. */
+function enlaceSeguro(url?: string): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch { return null; }
+}
 
 function plantilla(opts: {
   titulo: string; lineas: [string, string][]; pie?: string; link?: string;
 }): string {
   const filas = opts.lineas.map(([k, v]) => `
     <tr>
-      <td style="padding:7px 0;color:#8a8a8a;font-size:13px">${k}</td>
-      <td style="padding:7px 0;color:#141414;font-size:14px;font-weight:600;text-align:right">${v}</td>
+      <td style="padding:7px 0;color:#8a8a8a;font-size:13px">${esc(k)}</td>
+      <td style="padding:7px 0;color:#141414;font-size:14px;font-weight:600;text-align:right">${esc(v)}</td>
     </tr>`).join("");
 
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,sans-serif">
@@ -35,10 +56,10 @@ function plantilla(opts: {
       <p style="margin:0;color:#fff;font-size:13px;letter-spacing:.18em;text-transform:uppercase">The Promise Machine</p>
     </div>
     <div style="padding:24px">
-      <h1 style="margin:0 0 18px;font-size:19px;color:#141414">${opts.titulo}</h1>
+      <h1 style="margin:0 0 18px;font-size:19px;color:#141414">${esc(opts.titulo)}</h1>
       <table style="width:100%;border-collapse:collapse">${filas}</table>
-      ${opts.link ? `<a href="${opts.link}" style="display:inline-block;margin-top:20px;background:#0a0a0a;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Ver en el panel</a>` : ""}
-      ${opts.pie ? `<p style="margin:18px 0 0;color:#8a8a8a;font-size:12px;line-height:1.5">${opts.pie}</p>` : ""}
+      ${enlaceSeguro(opts.link) ? `<a href="${esc(enlaceSeguro(opts.link))}" style="display:inline-block;margin-top:20px;background:#0a0a0a;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Ver en el panel</a>` : ""}
+      ${opts.pie ? `<p style="margin:18px 0 0;color:#8a8a8a;font-size:12px;line-height:1.5">${esc(opts.pie)}</p>` : ""}
     </div>
   </div></body></html>`;
 }
