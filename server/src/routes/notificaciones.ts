@@ -1,18 +1,24 @@
 import { Router, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
-import { cargarUsuario, soloDueño } from "../middleware/roles";
+import { cargarUsuario, soloDueño, soloRoles, esVendedor } from "../middleware/roles";
 import { mailConfigurado, mailDePrueba } from "../lib/avisarPorMail";
 
 const router = Router();
 router.use(authMiddleware);
 router.use(cargarUsuario);
-router.use(soloDueño);   // los avisos son para el dueño
+router.use(soloRoles("OWNER", "SELLER"));
 
-router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
+/** El dueño ve los avisos del negocio; cada vendedor, sólo los suyos. */
+function deQuien(req: AuthRequest) {
+  return { userId: esVendedor(req) ? req.userId! : null };
+}
+
+router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
+  const mios = deQuien(req);
   const [items, sinLeer] = await prisma.$transaction([
-    prisma.notification.findMany({ orderBy: { createdAt: "desc" }, take: 40 }),
-    prisma.notification.count({ where: { read: false } }),
+    prisma.notification.findMany({ where: mios, orderBy: { createdAt: "desc" }, take: 40 }),
+    prisma.notification.count({ where: { ...mios, read: false } }),
   ]);
   res.json({ items, sinLeer });
 });
@@ -20,18 +26,18 @@ router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
 router.post("/leer", async (req: AuthRequest, res: Response): Promise<void> => {
   const ids = Array.isArray(req.body?.ids) ? (req.body.ids as string[]) : null;
   await prisma.notification.updateMany({
-    where: ids ? { id: { in: ids } } : { read: false },
+    where: { ...deQuien(req), ...(ids ? { id: { in: ids } } : { read: false }) },
     data: { read: true },
   });
   res.json({ ok: true });
 });
 
 /** Estado de los avisos por mail y envío de prueba. */
-router.get("/mail", async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/mail", soloDueño, async (_req: AuthRequest, res: Response): Promise<void> => {
   res.json({ configurado: mailConfigurado() });
 });
 
-router.post("/mail/probar", async (_req: AuthRequest, res: Response): Promise<void> => {
+router.post("/mail/probar", soloDueño, async (_req: AuthRequest, res: Response): Promise<void> => {
   if (!mailConfigurado()) {
     res.status(400).json({ error: "Faltan las variables RESEND_API_KEY y AVISOS_PARA en el servidor" });
     return;

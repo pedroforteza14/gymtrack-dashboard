@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { generateFichaPDF, FichaItem } from "../lib/fichaPdf";
 import { cargarUsuario, soloDueño } from "../middleware/roles";
-import { estaCobrada } from "../lib/comisiones";
+import { estaCobrada, avisar } from "../lib/comisiones";
 
 const router = Router();
 // Fichas, producción y cobros son del dueño. La vendedora ve la etapa de
@@ -198,14 +198,34 @@ async function syncSaleForFicha(fichaId: string): Promise<void> {
   }
 }
 
+// Cuando un pedido de un vendedor queda listo, le avisa para que coordine con el cliente
+async function avisarPedidoListo(ficha: { id: string; fichaNumber: string; clientName: string; deliveredAt: Date | null }) {
+  const venta = await prisma.sale.findFirst({
+    where: { fichaId: ficha.id, sellerId: { not: null }, deletedAt: null },
+    select: { sellerId: true },
+  });
+  if (!venta?.sellerId) return;
+  await avisar({
+    userId: venta.sellerId,
+    type: "PEDIDO_LISTO",
+    title: ficha.deliveredAt ? "Pedido entregado" : "Pedido listo para entregar",
+    body: `${ficha.fichaNumber} de ${ficha.clientName}` +
+          (ficha.deliveredAt ? " ya se entregó." : ". Avisale al cliente para coordinar la entrega."),
+    link: "/pedidos",
+  });
+}
+
 router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = fichaSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const antes = await prisma.fichaPedido.findUnique({ where: { id: req.params.id } });
+  if (!antes) { res.status(404).json({ error: "Ficha no encontrada" }); return; }
   const ficha = await prisma.fichaPedido.update({
     where: { id: req.params.id },
     data: toData(parsed.data as z.infer<typeof fichaSchema>) as never,
   });
   await syncSaleForFicha(ficha.id);
+  if (!antes.packedAt && ficha.packedAt) await avisarPedidoListo(ficha);
   await syncCobroDeVenta(ficha.id, Number(ficha.total), Number(ficha.deposit));
   res.json(ficha);
 });

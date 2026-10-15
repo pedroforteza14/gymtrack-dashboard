@@ -10,16 +10,19 @@ interface Aviso {
   link?: string | null; read: boolean; createdAt: string;
 }
 
-/** Campanita con los avisos del negocio. Sólo para el dueño. */
-export default function Avisos() {
+/** Campanita con los avisos: los del negocio para el dueño, los suyos para cada vendedor. */
+// arriba: en la barra lateral la campanita está abajo a la izquierda, así que la lista se abre
+// hacia arriba y a la derecha; en el encabezado del celular se abre hacia abajo
+export default function Avisos({ arriba = false }: { arriba?: boolean }) {
   const qc = useQueryClient();
   const [abierto, setAbierto] = useState(false);
-  const esDueño = getRole() === "OWNER";
+  const rol = getRole();
+  const tieneAvisos = rol === "OWNER" || rol === "SELLER";
 
   const { data } = useQuery<{ items: Aviso[]; sinLeer: number }>({
     queryKey: ["avisos"],
     queryFn: () => api.get("/notificaciones").then((r) => r.data),
-    enabled: esDueño,
+    enabled: tieneAvisos,
     refetchInterval: 60_000,          // se refresca solo cada minuto
     refetchOnWindowFocus: true,
   });
@@ -29,7 +32,7 @@ export default function Avisos() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["avisos"] }),
   });
 
-  if (!esDueño) return null;
+  if (!tieneAvisos) return null;
   const sinLeer = data?.sinLeer ?? 0;
 
   return (
@@ -51,7 +54,7 @@ export default function Avisos() {
       {abierto && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setAbierto(false)} />
-          <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto z-50 card p-0">
+          <div className={`absolute ${arriba ? "left-0 bottom-full mb-2" : "right-0 mt-2"} w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto z-50 card p-0`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
               <span className="text-sm font-medium text-white">Avisos</span>
               <button onClick={() => setAbierto(false)} className="text-gray-500 hover:text-white">

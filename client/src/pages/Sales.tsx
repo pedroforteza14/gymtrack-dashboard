@@ -6,6 +6,8 @@ import { Skeleton } from "../components/Skeleton";
 import { api } from "../lib/api";
 import { getRole } from "../lib/auth";
 import { currency, pct, dateLong } from "../lib/format";
+import { etapaPedido, diaDelPedido } from "../lib/pedidos";
+import type { Pedido } from "../lib/pedidos";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -20,23 +22,6 @@ interface Sale {
   pedido?: Pedido | null;
   items: { id: string; productId: string; quantity: number; unitPrice: number; unitCost: number; subtotal: number; profit: number; product: { name: string; sku: string } }[];
 }
-
-interface Pedido {
-  fichaNumber: string; estimatedDate?: string | null;
-  fabricatedAt?: string | null; packedAt?: string | null; deliveredAt?: string | null;
-}
-
-/** En qué parte de Producción está el pedido, dicho como se lo diría al cliente. */
-function etapaPedido(p: Pedido): { label: string; color: string } {
-  if (p.deliveredAt) return { label: "Entregado", color: "bg-green-400/10 text-green-400" };
-  if (p.packedAt) return { label: "Listo para entregar", color: "bg-white/10 text-white" };
-  if (p.fabricatedAt) return { label: "Fabricado, falta embalar", color: "bg-gray-700/60 text-gray-200" };
-  return { label: "En fabricación", color: "bg-yellow-400/10 text-yellow-400" };
-}
-
-// la fecha estimada se guarda como día (medianoche UTC): sin esto en Argentina sale el día anterior
-const diaDelPedido = (d: string) =>
-  new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(d));
 
 const PAYMENT_LABELS: Record<string, string> = { CASH: "Efectivo", TRANSFER: "Transferencia", INSTALLMENTS: "Cuotas", OTHER: "Otro" };
 const STATUS_COLORS: Record<string, string> = { PAID: "bg-green-400/10 text-green-400", PENDING: "bg-red-400/10 text-red-400", PARTIAL: "bg-yellow-400/10 text-yellow-400" };

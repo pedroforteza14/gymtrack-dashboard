@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
-import { cargarUsuario, esVendedor, soloDueño } from "../middleware/roles";
+import { cargarUsuario, esVendedor, soloDueño, soloRoles } from "../middleware/roles";
 import { calcularComision, estaCobrada, avisar, CANAL_CON_COMISION } from "../lib/comisiones";
 import { mailComisionAnulada } from "../lib/avisarPorMail";
 import { crearVenta, avisarVentaDeVendedor, ErrorDeVenta } from "../lib/ventas";
@@ -10,6 +10,8 @@ import { crearVenta, avisarVentaDeVendedor, ErrorDeVenta } from "../lib/ventas";
 const router = Router();
 router.use(authMiddleware);
 router.use(cargarUsuario);
+// ventas, cobros y pedidos: dueño y vendedores (marketing no las usa)
+router.use(soloRoles("OWNER", "SELLER"));
 
 const saleItemSchema = z.object({
   productId: z.string(),
@@ -51,6 +53,7 @@ async function pedidosDe(fichaIds: (string | null)[]) {
     select: {
       id: true, fichaNumber: true, estimatedDate: true,
       fabricatedAt: true, packedAt: true, deliveredAt: true,
+      clientName: true, clientPhone: true, deliveryType: true,
     },
   });
   return new Map(fichas.map((f) => [f.id, f]));
@@ -98,6 +101,27 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     sales: sales.map((v) => ({ ...segunRol(v, req), pedido: v.fichaId ? pedidos.get(v.fichaId) ?? null : null })),
     total, page: parseInt(page), limit: parseInt(limit),
   });
+});
+
+/** Los pedidos de la vendedora (ventas con ficha), con su etapa en Producción. */
+router.get("/pedidos", async (req: AuthRequest, res: Response): Promise<void> => {
+  const ventas = await prisma.sale.findMany({
+    where: {
+      deletedAt: null,
+      fichaId: { not: null },
+      ...(esVendedor(req) ? { sellerId: req.userId } : { sellerId: { not: null } }),
+    },
+    select: {
+      id: true, saleNumber: true, createdAt: true, fichaId: true,
+      totalRevenue: true, pendingAmount: true, paymentStatus: true,
+      client: { select: { name: true } },
+      items: { select: { quantity: true, product: { select: { name: true } } } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const pedidos = await pedidosDe(ventas.map((v) => v.fichaId));
+  // si la ficha se borró, el pedido ya no existe
+  res.json(ventas.filter((v) => pedidos.has(v.fichaId!)).map((v) => ({ ...v, pedido: pedidos.get(v.fichaId!) })));
 });
 
 router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {

@@ -81,12 +81,13 @@ export async function calcularComision(opts: {
   };
 }
 
-/** Deja un aviso para el dueño. */
+/** Deja un aviso en la campanita: del dueño, o del vendedor si viene userId. */
 export async function avisar(opts: {
   type: string;
   title: string;
   body: string;
   link?: string;
+  userId?: string;
 }) {
   try {
     await prisma.notification.create({ data: opts });

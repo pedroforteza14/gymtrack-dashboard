@@ -10,6 +10,7 @@ import Comisiones from "./pages/Comisiones";
 import Metricas from "./pages/Metricas";
 import Clients from "./pages/Clients";
 import Quotes from "./pages/Quotes";
+import MisPedidos from "./pages/MisPedidos";
 import AgencyDashboard from "./pages/AgencyDashboard";
 import ClientDashboard from "./pages/ClientDashboard";
 import AdAccounts from "./pages/AdAccounts";
@@ -108,6 +109,11 @@ export default function App() {
           <Route path="/clients" element={
             <RoleRoute role={["OWNER", "SELLER"]}>
               <Layout><Clients /></Layout>
+            </RoleRoute>
+          } />
+          <Route path="/pedidos" element={
+            <RoleRoute role="SELLER">
+              <Layout><MisPedidos /></Layout>
             </RoleRoute>
           } />
           <Route path="/quotes" element={

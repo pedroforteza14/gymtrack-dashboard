@@ -434,7 +434,9 @@ model Setting {
 // Avisos para el dueño (por ejemplo: venta cargada por un vendedor)
 model Notification {
   id        String   @id @default(cuid())
-  type      String // VENTA_VENDEDOR | COMISION | OTRO
+  type      String // VENTA_VENDEDOR | COMISION | PRESUPUESTO | PEDIDO_LISTO | OTRO
+  // para quién es: null = el dueño; si no, el vendedor
+  userId    String?
   title     String
   body      String
   link      String?
@@ -442,4 +444,5 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([read, createdAt])
+  @@index([userId, read])
 }

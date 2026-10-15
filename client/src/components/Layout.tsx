@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X,
-  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory, Archive, DatabaseBackup, Hammer, ShoppingBag, StickyNote,
+  TrendingUp, Users, FileText, Megaphone, MonitorPlay, PieChart, ClipboardList, CalendarDays, Wallet, BarChart3, Ruler, Coins, Factory, Archive, DatabaseBackup, Hammer, ShoppingBag, StickyNote, Truck,
 } from "lucide-react";
 import { logout, isAuthenticated, getRole } from "../lib/auth";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ const ownerNav = [
 const sellerNav = [
   { to: "/sales", icon: ShoppingCart, label: "Mis ventas" },
   { to: "/quotes", icon: FileText, label: "Mis presupuestos" },
+  { to: "/pedidos", icon: Truck, label: "Mis pedidos" },
   { to: "/comisiones", icon: Coins, label: "Mis comisiones" },
   { to: "/clients", icon: Users, label: "Clientes" },
   { to: "/products", icon: Package, label: "Catálogo" },
@@ -139,7 +140,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* User */}
         <div className="px-3 py-4 border-t border-gray-800">
-          <div className="hidden md:flex justify-end px-3"><Avisos /></div>
+          <div className="hidden md:flex justify-end px-3"><Avisos arriba /></div>
           <div className="flex items-center gap-3 px-3 py-2 mb-1">
             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-gray-800 border-gray-700">
               <span className="text-sm font-bold text-white">
