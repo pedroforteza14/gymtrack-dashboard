@@ -37,6 +37,8 @@ const MAX_IMG_MB = 2.5;
 const token = () => localStorage.getItem("token");
 const imgUrl = (id: string) => `${api.defaults.baseURL}/products/${id}/image?token=${token()}`;
 
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export default function Products() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -121,19 +123,18 @@ export default function Products() {
     reader.readAsDataURL(f);
   }
 
-  const lines = Array.from(new Set(products.map((p) => p.line).filter(Boolean))) as string[];
+  // Las líneas salen sólo del catálogo activo: el importador de ventas deja los productos de la
+  // planilla desactivados y con la familia como línea ("Bancos", "Racks"...), que no son filtros reales
+  const activos = products.filter((p) => p.active);
+  const lines = Array.from(new Set(activos.map((p) => p.line).filter(Boolean))) as string[];
 
-  const filtered = products.filter((p) =>
-    p.active &&
-    (!lineFilter || p.line === lineFilter) &&
-    (
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      p.category?.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplier?.toLowerCase().includes(search.toLowerCase()) ||
-      p.line?.toLowerCase().includes(search.toLowerCase())
-    )
-  );
+  // sin distinguir acentos ni mayúsculas: "maquina" encuentra "Máquina", y cada palabra puede estar en cualquier campo
+  const palabras = sinAcentos(search.trim()).split(/\s+/).filter(Boolean);
+  const filtered = activos.filter((p) => {
+    if (lineFilter && p.line !== lineFilter) return false;
+    const texto = sinAcentos([p.name, p.sku, p.category?.name, p.supplier, p.line].filter(Boolean).join(" "));
+    return palabras.every((w) => texto.includes(w));
+  });
 
   return (
     <div className="p-4 md:p-8 space-y-6">
