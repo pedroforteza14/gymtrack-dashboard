@@ -168,10 +168,12 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 const ESTADOS_DEL_VENDEDOR = ["DRAFT", "SENT", "NEGOTIATING", "REJECTED", "EXPIRED"] as const;
+const ESTADOS_MANUALES = ["DRAFT", "PENDING_APPROVAL", "SENT", "NEGOTIATING", "REJECTED", "EXPIRED"] as const;
 
 router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = z.object({
-    status: z.enum(["DRAFT", "PENDING_APPROVAL", "SENT", "NEGOTIATING", "ACCEPTED", "REJECTED", "EXPIRED"]),
+    // "Ganado" no se pone a mano: lo pone /venta junto con la venta
+    status: z.enum(ESTADOS_MANUALES),
     lostReason: z.string().max(200).optional(),
   }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -179,13 +181,11 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
 
   const quote = await buscarVisible(req, req.params.id);
   if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
+  if (quote.saleId) { res.status(400).json({ error: "Este presupuesto ya se convirtió en venta" }); return; }
 
   if (esVendedor(req)) {
     if (quote.status === "PENDING_APPROVAL") {
       res.status(403).json({ error: "Este presupuesto está esperando la aprobación del dueño" }); return;
-    }
-    if (quote.saleId) {
-      res.status(403).json({ error: "Este presupuesto ya se convirtió en venta" }); return;
     }
     if (!(ESTADOS_DEL_VENDEDOR as readonly string[]).includes(status)) {
       res.status(403).json({ error: "Para marcarlo como ganado usá el botón \"Ganado\"" }); return;
@@ -225,6 +225,12 @@ router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> 
 
   const quote = await buscarVisible(req, req.params.id);
   if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
+
+  // lo que el dueño aprueba es lo que ve: mientras espera aprobación no se cambia el descuento
+  if (esVendedor(req) && parsed.data.cashDiscount !== undefined
+      && (quote.status === "PENDING_APPROVAL" || quote.saleId)) {
+    res.status(403).json({ error: "No se puede cambiar el descuento de este presupuesto ahora" }); return;
+  }
 
   // si la vendedora sube el % OFF por encima del estándar, vuelve a aprobación
   const reAprobar = esVendedor(req)
@@ -272,7 +278,6 @@ router.post("/:id/venta", async (req: AuthRequest, res: Response): Promise<void>
 
   const quote = await buscarVisible(req, req.params.id);
   if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
-  if (quote.saleId) { res.status(400).json({ error: "Este presupuesto ya se convirtió en venta" }); return; }
   if (quote.status === "PENDING_APPROVAL") {
     res.status(400).json({ error: "Primero lo tiene que aprobar el dueño" }); return;
   }
@@ -290,6 +295,17 @@ router.post("/:id/venta", async (req: AuthRequest, res: Response): Promise<void>
   const pendingAmount = total - cobrado;
   const paymentStatus = pendingAmount <= 0 ? "PAID" : cobrado > 0 ? "PARTIAL" : "PENDING";
 
+  // Se reserva el presupuesto antes de crear nada: si llegan dos "Ganado" juntos
+  // (doble click, dos pestañas), sólo uno pasa y no se duplica venta ni comisión.
+  const reservado = await prisma.quote.updateMany({
+    where: { id: quote.id, saleId: null, status: { notIn: ["ACCEPTED", "PENDING_APPROVAL"] } },
+    data: { status: "ACCEPTED" },
+  });
+  if (reservado.count === 0) {
+    res.status(409).json({ error: "Este presupuesto ya se convirtió en venta" }); return;
+  }
+  const liberar = () => prisma.quote.update({ where: { id: quote.id }, data: { status: quote.status } });
+
   let creada;
   try {
     creada = await crearVenta({
@@ -303,6 +319,7 @@ router.post("/:id/venta", async (req: AuthRequest, res: Response): Promise<void>
       sellerId: quote.sellerId,
     });
   } catch (e) {
+    await liberar();
     if (e instanceof ErrorDeVenta) {
       res.status(400).json({ error: "Alguno de los productos ya no está en el catálogo" }); return;
     }
@@ -312,29 +329,36 @@ router.post("/:id/venta", async (req: AuthRequest, res: Response): Promise<void>
 
   const fichaNumber = await generateFichaNumber();
   const vendio = quote.seller?.name ? `Vendió: ${quote.seller.name}` : null;
-  await prisma.$transaction(async (tx) => {
-    const ficha = await tx.fichaPedido.create({
-      data: {
-        fichaNumber,
-        clientId: quote.clientId,
-        clientName: quote.client?.name ?? "Cliente",
-        clientPhone: quote.client?.phone ?? null,
-        items: quote.items.map((i) => ({
-          cantidad: i.quantity,
-          producto: i.notes ? `${i.product.name} — ${i.notes}` : i.product.name,
-        })),
-        total,
-        deposit: cobrado,
-        paymentMethod: METODO_EN_FICHA[paymentMethod],
-        observations: [quote.notes, vendio, `Presupuesto ${quote.quoteNumber}`].filter(Boolean).join("\n"),
-        ...(cobrado > 0
-          ? { payments: { create: { amount: cobrado, method: METODO_EN_FICHA[paymentMethod], notes: "Al cerrar el presupuesto" } } }
-          : {}),
-      },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const ficha = await tx.fichaPedido.create({
+        data: {
+          fichaNumber,
+          clientId: quote.clientId,
+          clientName: quote.client?.name ?? "Cliente",
+          clientPhone: quote.client?.phone ?? null,
+          items: quote.items.map((i) => ({
+            cantidad: i.quantity,
+            producto: i.notes ? `${i.product.name} — ${i.notes}` : i.product.name,
+          })),
+          total,
+          deposit: cobrado,
+          paymentMethod: METODO_EN_FICHA[paymentMethod],
+          observations: [quote.notes, vendio, `Presupuesto ${quote.quoteNumber}`].filter(Boolean).join("\n"),
+          ...(cobrado > 0
+            ? { payments: { create: { amount: cobrado, method: METODO_EN_FICHA[paymentMethod], notes: "Al cerrar el presupuesto" } } }
+            : {}),
+        },
+      });
+      await tx.sale.update({ where: { id: sale.id }, data: { fichaId: ficha.id } });
+      await tx.quote.update({ where: { id: quote.id }, data: { saleId: sale.id, lostReason: null } });
     });
-    await tx.sale.update({ where: { id: sale.id }, data: { fichaId: ficha.id } });
-    await tx.quote.update({ where: { id: quote.id }, data: { status: "ACCEPTED", saleId: sale.id, lostReason: null } });
-  });
+  } catch (e) {
+    // sin ficha no hay pedido: se deshace la venta y el presupuesto vuelve a como estaba
+    await prisma.sale.delete({ where: { id: sale.id } });
+    await liberar();
+    throw e;
+  }
 
   if (esVendedor(req)) await avisarVentaDeVendedor(req.user?.name ?? "un vendedor", creada);
 

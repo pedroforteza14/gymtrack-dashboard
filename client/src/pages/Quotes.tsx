@@ -374,7 +374,7 @@ export default function Quotes() {
                     {pendiente && (
                       <p className="text-xs text-orange-300 mb-3">
                         {esDueño
-                          ? `Tiene más descuento del permitido (tope ${tope}% sobre lista, ${offEstandar}% OFF en efectivo). Revisalo y aprobalo para que se pueda mandar.`
+                          ? `Tiene más descuento del permitido (tope ${tope}% sobre lista, ${offEstandar}% OFF en efectivo). Este tiene ${Number(q.cashDiscount ?? 0)}% OFF en efectivo. Revisalo y aprobalo para que se pueda mandar.`
                           : "Tiene más descuento del permitido. Cuando el dueño lo apruebe vas a poder descargar el PDF y mandarlo."}
                       </p>
                     )}
