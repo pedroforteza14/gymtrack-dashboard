@@ -4,7 +4,8 @@ import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { cargarUsuario, esVendedor, soloDueño } from "../middleware/roles";
 import { calcularComision, estaCobrada, avisar, CANAL_CON_COMISION } from "../lib/comisiones";
-import { mailVentaDeVendedor, mailComisionAnulada } from "../lib/avisarPorMail";
+import { mailComisionAnulada } from "../lib/avisarPorMail";
+import { crearVenta, avisarVentaDeVendedor, ErrorDeVenta } from "../lib/ventas";
 
 const router = Router();
 router.use(authMiddleware);
@@ -41,9 +42,18 @@ function segunRol(venta: any, req: AuthRequest) {
   };
 }
 
-async function generateSaleNumber(): Promise<string> {
-  const count = await prisma.sale.count();
-  return `VTA-${String(count + 1).padStart(5, "0")}`;
+/** En qué etapa de producción está el pedido de cada venta (para contestarle al cliente). */
+async function pedidosDe(fichaIds: (string | null)[]) {
+  const ids = fichaIds.filter((x): x is string => !!x);
+  if (ids.length === 0) return new Map();
+  const fichas = await prisma.fichaPedido.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    select: {
+      id: true, fichaNumber: true, estimatedDate: true,
+      fabricatedAt: true, packedAt: true, deliveredAt: true,
+    },
+  });
+  return new Map(fichas.map((f) => [f.id, f]));
 }
 
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -83,7 +93,11 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     prisma.sale.count({ where }),
   ]);
 
-  res.json({ sales: sales.map((v) => segunRol(v, req)), total, page: parseInt(page), limit: parseInt(limit) });
+  const pedidos = await pedidosDe(sales.map((v) => v.fichaId));
+  res.json({
+    sales: sales.map((v) => ({ ...segunRol(v, req), pedido: v.fichaId ? pedidos.get(v.fichaId) ?? null : null })),
+    total, page: parseInt(page), limit: parseInt(limit),
+  });
 });
 
 router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -108,97 +122,19 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   // Si la carga un vendedor, el canal es WhatsApp salvo que diga otra cosa.
   const channel = parsed.data.channel ?? (esVendedor(req) ? CANAL_CON_COMISION : null);
 
-  // Trabajo a pedido: no se controla stock. Solo validamos que el producto exista.
-  const productIds = items.map((i) => i.productId);
-  const products = await prisma.product.findMany({ where: { id: { in: productIds }, active: true } });
-
-  for (const item of items) {
-    const product = products.find((p) => p.id === item.productId);
-    if (!product) {
-      res.status(400).json({ error: `Producto ${item.productId} no encontrado` });
-      return;
-    }
-  }
-
-  const saleNumber = await generateSaleNumber();
-  let totalCost = 0;
-  let totalRevenue = 0;
-
-  const saleItemsData = items.map((item) => {
-    const product = products.find((p) => p.id === item.productId)!;
-    const unitCost = Number(product.costPrice);
-    const subtotal = item.unitPrice * item.quantity;
-    const cost = unitCost * item.quantity;
-    const profit = subtotal - cost;
-    totalRevenue += subtotal;
-    totalCost += cost;
-    return {
-      productId: item.productId,
-      quantity: item.quantity,
-      unitCost,
-      unitPrice: item.unitPrice,
-      subtotal,
-      profit,
-    };
-  });
-
-  const totalProfit = totalRevenue - totalCost;
-
-  const comision = await calcularComision({
-    channel, sellerId, total: totalRevenue, paymentStatus, pendingAmount,
-  });
-
-  const sale = await prisma.$transaction(async (tx) => {
-    const newSale = await tx.sale.create({
-      data: {
-        saleNumber,
-        notes,
-        totalCost,
-        totalRevenue,
-        totalProfit,
-        paymentMethod,
-        paymentStatus,
-        ...(pendingAmount !== undefined ? { pendingAmount } : {}),
-        ...(clientId ? { clientId } : {}),
-        ...(date ? { createdAt: new Date(date + "T12:00:00") } : {}),
-        ...(channel ? { channel } : {}),
-        ...(sellerId ? { sellerId } : {}),
-        ...comision,
-        items: { create: saleItemsData },
-      },
-      include: {
-        client: { select: { id: true, name: true } },
-        items: { include: { product: true } },
-      },
+  let creada;
+  try {
+    creada = await crearVenta({
+      items, notes, clientId, paymentMethod, paymentStatus, pendingAmount, date, channel, sellerId,
     });
-
-    return newSale;
-  });
+  } catch (e) {
+    if (e instanceof ErrorDeVenta) { res.status(400).json({ error: e.message }); return; }
+    throw e;
+  }
+  const { sale } = creada;
 
   // Si la cargó un vendedor, le avisamos al dueño
-  if (esVendedor(req)) {
-    // el mail no bloquea la respuesta: si falla, queda el aviso en la campanita
-    void mailVentaDeVendedor({
-      vendedor: req.user?.name ?? "Un vendedor",
-      saleNumber: sale.saleNumber,
-      cliente: sale.client?.name,
-      total: Number(sale.totalRevenue),
-      comision: comision.commissionAmount ? Number(comision.commissionAmount) : null,
-      productos: sale.items.map((i: any) => `${i.product?.name ?? "—"} x${i.quantity}`).join(", ").slice(0, 120),
-      cobrada: estaCobrada(paymentStatus, pendingAmount),
-    });
-
-    const cliente = sale.client?.name ? ` a ${sale.client.name}` : "";
-    await avisar({
-      type: "VENTA_VENDEDOR",
-      title: `Nueva venta de ${req.user?.name ?? "un vendedor"}`,
-      body: `${sale.saleNumber}${cliente} por $${Number(sale.totalRevenue).toLocaleString("es-AR")}` +
-            (comision.commissionAmount
-              ? ` · comisión $${Number(comision.commissionAmount).toLocaleString("es-AR")}`
-              : ""),
-      link: "/sales",
-    });
-  }
+  if (esVendedor(req)) await avisarVentaDeVendedor(req.user?.name ?? "un vendedor", creada);
 
   res.status(201).json(segunRol(sale, req));
 });
@@ -214,6 +150,11 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   // un vendedor sólo edita lo suyo
   if (esVendedor(req) && existing.sellerId !== req.userId) {
     res.status(403).json({ error: "Sólo podés editar tus propias ventas" });
+    return;
+  }
+  // con pedido en producción, lo cobrado se lleva en la ficha: lo cambia el dueño
+  if (esVendedor(req) && existing.fichaId) {
+    res.status(403).json({ error: "Este pedido ya está en producción: pedile al dueño que lo modifique" });
     return;
   }
 

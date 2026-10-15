@@ -43,7 +43,7 @@ function formatARS(value: number): string {
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Borrador", SENT: "Enviado", ACCEPTED: "Aceptado",
-  REJECTED: "Rechazado", EXPIRED: "Vencido",
+  REJECTED: "Rechazado", EXPIRED: "Vencido", NEGOTIATING: "Enviado", PENDING_APPROVAL: "Borrador",
 };
 
 export function generateQuotePDF(quote: QuoteData, res: Response): void {

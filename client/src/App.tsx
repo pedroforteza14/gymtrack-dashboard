@@ -111,7 +111,7 @@ export default function App() {
             </RoleRoute>
           } />
           <Route path="/quotes" element={
-            <RoleRoute role="OWNER">
+            <RoleRoute role={["OWNER", "SELLER"]}>
               <Layout><Quotes /></Layout>
             </RoleRoute>
           } />

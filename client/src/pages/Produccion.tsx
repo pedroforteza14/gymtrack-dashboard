@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
-import { currency, dateShort } from "../lib/format";
+import { currency, dateShort, waLink } from "../lib/format";
 
 interface FichaItem { cantidad: number; producto: string; }
 interface Ficha {
@@ -58,14 +58,6 @@ function payloadForStage(stage: StageKey, f: Ficha): Record<string, string | nul
     case "EMBALADO": return { fabricatedAt: fab, packedAt: pack, deliveredAt: null };
     case "ENTREGADO": return { fabricatedAt: fab, packedAt: pack, deliveredAt: f.deliveredAt ? f.deliveredAt.slice(0, 10) : today };
   }
-}
-
-function waLink(phone: string | undefined, message: string): string | null {
-  if (!phone) return null;
-  let digits = phone.replace(/\D/g, "");
-  if (!digits) return null;
-  if (!digits.startsWith("54")) digits = "54" + digits;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
 export default function Produccion() {

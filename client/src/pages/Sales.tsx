@@ -17,8 +17,26 @@ interface Sale {
   paymentMethod?: string; paymentStatus: string; pendingAmount?: number;
   totalCost: number; totalRevenue: number; totalProfit: number; createdAt: string;
   client?: { id: string; name: string } | null;
+  pedido?: Pedido | null;
   items: { id: string; productId: string; quantity: number; unitPrice: number; unitCost: number; subtotal: number; profit: number; product: { name: string; sku: string } }[];
 }
+
+interface Pedido {
+  fichaNumber: string; estimatedDate?: string | null;
+  fabricatedAt?: string | null; packedAt?: string | null; deliveredAt?: string | null;
+}
+
+/** En qué parte de Producción está el pedido, dicho como se lo diría al cliente. */
+function etapaPedido(p: Pedido): { label: string; color: string } {
+  if (p.deliveredAt) return { label: "Entregado", color: "bg-green-400/10 text-green-400" };
+  if (p.packedAt) return { label: "Listo para entregar", color: "bg-white/10 text-white" };
+  if (p.fabricatedAt) return { label: "Fabricado, falta embalar", color: "bg-gray-700/60 text-gray-200" };
+  return { label: "En fabricación", color: "bg-yellow-400/10 text-yellow-400" };
+}
+
+// la fecha estimada se guarda como día (medianoche UTC): sin esto en Argentina sale el día anterior
+const diaDelPedido = (d: string) =>
+  new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(d));
 
 const PAYMENT_LABELS: Record<string, string> = { CASH: "Efectivo", TRANSFER: "Transferencia", INSTALLMENTS: "Cuotas", OTHER: "Otro" };
 const STATUS_COLORS: Record<string, string> = { PAID: "bg-green-400/10 text-green-400", PENDING: "bg-red-400/10 text-red-400", PARTIAL: "bg-yellow-400/10 text-yellow-400" };
@@ -99,6 +117,8 @@ export default function Sales() {
   });
 
   const esDueño = getRole() === "OWNER";
+  // la vendedora no ve costo, ganancia ni margen
+  const columnas = esDueño ? 10 : 7;
   const { data: vendedores = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["vendedores"],
     queryFn: () => api.get("/comisiones/vendedores").then((r) => r.data),
@@ -306,11 +326,11 @@ export default function Sales() {
               <th className="px-6 py-3 text-gray-400 font-medium">#</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Cliente</th>
               <th className="px-4 py-3 text-gray-400 font-medium">Productos</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Ingresos</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Ganancia</th>
+              {esDueño && <th className="px-4 py-3 text-gray-400 font-medium text-right">Costo</th>}
+              <th className="px-4 py-3 text-gray-400 font-medium text-right">{esDueño ? "Ingresos" : "Total"}</th>
+              {esDueño && <th className="px-4 py-3 text-gray-400 font-medium text-right">Ganancia</th>}
               <th className="px-4 py-3 text-gray-400 font-medium">Pago</th>
-              <th className="px-4 py-3 text-gray-400 font-medium text-right">Margen</th>
+              {esDueño && <th className="px-4 py-3 text-gray-400 font-medium text-right">Margen</th>}
               <th className="px-4 py-3 text-gray-400 font-medium text-right">Fecha</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -318,13 +338,13 @@ export default function Sales() {
           <tbody className="divide-y divide-gray-800/50">
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 10 }).map((_, c) => (
+                <tr key={i}>{Array.from({ length: columnas }).map((_, c) => (
                   <td key={c} className="px-4 py-4"><Skeleton className="h-4 w-full" /></td>
                 ))}</tr>
               ))
             ) : sales.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={columnas} className="px-6 py-12 text-center text-gray-500">
                   {hasFilters ? "Sin ventas con los filtros aplicados" : "Sin ventas registradas"}
                 </td>
               </tr>
@@ -350,25 +370,39 @@ export default function Sales() {
                     </td>
                     <td className="px-4 py-4 text-gray-300 max-w-[200px]">
                       <span className="truncate block">{sale.items.map((i) => `${i.product.name} x${i.quantity}`).join(", ")}</span>
+                      {sale.pedido && (() => {
+                        const e = etapaPedido(sale.pedido);
+                        return (
+                          <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${e.color}`}
+                            title={`Pedido ${sale.pedido.fichaNumber}`}>
+                            {e.label}
+                            {!sale.pedido.deliveredAt && sale.pedido.estimatedDate && ` · aprox. ${diaDelPedido(sale.pedido.estimatedDate)}`}
+                          </span>
+                        );
+                      })()}
                     </td>
-                    <td className="px-4 py-4 text-right text-gray-400">{currency(Number(sale.totalCost))}</td>
+                    {esDueño && <td className="px-4 py-4 text-right text-gray-400">{currency(Number(sale.totalCost))}</td>}
                     <td className="px-4 py-4 text-right font-medium text-white">{currency(Number(sale.totalRevenue))}</td>
-                    <td className="px-4 py-4 text-right text-green-400">{currency(Number(sale.totalProfit))}</td>
+                    {esDueño && <td className="px-4 py-4 text-right text-green-400">{currency(Number(sale.totalProfit))}</td>}
                     <td className="px-4 py-4">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[sale.paymentStatus] ?? ""}`}>
                         {STATUS_LABELS[sale.paymentStatus] ?? sale.paymentStatus}
                       </span>
                       {sale.paymentMethod && <p className="text-xs text-gray-500 mt-0.5">{PAYMENT_LABELS[sale.paymentMethod]}</p>}
                     </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className={m >= 30 ? "badge-green" : m >= 15 ? "badge-yellow" : "badge-red"}>{pct(m)}</span>
-                    </td>
+                    {esDueño && (
+                      <td className="px-4 py-4 text-right">
+                        <span className={m >= 30 ? "badge-green" : m >= 15 ? "badge-yellow" : "badge-red"}>{pct(m)}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-4 text-right text-gray-400">{dateLong(sale.createdAt)}</td>
                     <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(sale)} className="btn-secondary flex items-center gap-1">
-                          <Pencil size={12} /> Editar
-                        </button>
+                        {(esDueño || !sale.pedido) && (
+                          <button onClick={() => openEdit(sale)} className="btn-secondary flex items-center gap-1">
+                            <Pencil size={12} /> Editar
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             if (confirm(`¿Anular venta ${sale.saleNumber}?`))
@@ -652,10 +686,19 @@ export default function Sales() {
                 </tbody>
               </table>
               <div className="border-t border-gray-800 pt-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-400">Costo total</span><span className="text-gray-200">{currency(Number(detail.totalCost))}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Ingresos</span><span className="text-white font-medium">{currency(Number(detail.totalRevenue))}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Ganancia</span><span className="text-green-400 font-medium">{currency(Number(detail.totalProfit))}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Margen</span><span>{pct(detail.totalRevenue > 0 ? (detail.totalProfit / detail.totalRevenue) * 100 : 0)}</span></div>
+                {esDueño && <div className="flex justify-between"><span className="text-gray-400">Costo total</span><span className="text-gray-200">{currency(Number(detail.totalCost))}</span></div>}
+                <div className="flex justify-between"><span className="text-gray-400">{esDueño ? "Ingresos" : "Total"}</span><span className="text-white font-medium">{currency(Number(detail.totalRevenue))}</span></div>
+                {esDueño && <div className="flex justify-between"><span className="text-gray-400">Ganancia</span><span className="text-green-400 font-medium">{currency(Number(detail.totalProfit))}</span></div>}
+                {esDueño && <div className="flex justify-between"><span className="text-gray-400">Margen</span><span>{pct(detail.totalRevenue > 0 ? (detail.totalProfit / detail.totalRevenue) * 100 : 0)}</span></div>}
+                {detail.pedido && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Pedido {detail.pedido.fichaNumber}</span>
+                    <span className="text-gray-200">
+                      {etapaPedido(detail.pedido).label}
+                      {!detail.pedido.deliveredAt && detail.pedido.estimatedDate && ` · aprox. ${diaDelPedido(detail.pedido.estimatedDate)}`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-400">Pago</span>
                   <span className="flex items-center gap-2">

@@ -3,8 +3,15 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { generateFichaPDF, FichaItem } from "../lib/fichaPdf";
+import { cargarUsuario, soloDueño } from "../middleware/roles";
+import { estaCobrada } from "../lib/comisiones";
 
 const router = Router();
+// Fichas, producción y cobros son del dueño. La vendedora ve la etapa de
+// sus pedidos desde sus ventas, nunca la ficha completa.
+router.use(authMiddleware);
+router.use(cargarUsuario);
+router.use(soloDueño);
 
 const itemSchema = z.object({ cantidad: z.number().int().min(0), producto: z.string() });
 
@@ -31,7 +38,7 @@ const fichaSchema = z.object({
   deliveredBy: z.string().optional().nullable(),
 });
 
-async function generateFichaNumber(): Promise<string> {
+export async function generateFichaNumber(): Promise<string> {
   const count = await prisma.fichaPedido.count();
   return `FP-${String(count + 1).padStart(5, "0")}`;
 }
@@ -46,7 +53,7 @@ function toData(input: Record<string, unknown>) {
   return data;
 }
 
-router.get("/", authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
   const fichas = await prisma.fichaPedido.findMany({
     where: { deletedAt: null },
     include: {
@@ -58,7 +65,7 @@ router.get("/", authMiddleware, async (_req: AuthRequest, res: Response): Promis
   res.json(fichas);
 });
 
-router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const ficha = await prisma.fichaPedido.findUnique({
     where: { id: req.params.id },
     include: { payments: { orderBy: { date: "asc" } } },
@@ -72,15 +79,36 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response): Prom
 async function recalcDeposit(fichaId: string): Promise<void> {
   const pagos = await prisma.payment.findMany({ where: { fichaId }, select: { amount: true } });
   const total = pagos.reduce((s, p) => s + Number(p.amount), 0);
-  await prisma.fichaPedido.update({ where: { id: fichaId }, data: { deposit: total } });
+  const ficha = await prisma.fichaPedido.update({ where: { id: fichaId }, data: { deposit: total } });
+  await syncCobroDeVenta(ficha.id, Number(ficha.total), total);
 }
 
-router.get("/:id/payments", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+// Si la ficha nació de una venta de un vendedor, lo cobrado se registra en la
+// ficha y la venta lo copia: así la comisión pasa a "A pagar" cuando se termina de cobrar.
+async function syncCobroDeVenta(fichaId: string, total: number, cobrado: number): Promise<void> {
+  const venta = await prisma.sale.findUnique({ where: { fichaId } });
+  if (!venta || venta.saleNumber.startsWith("PED-")) return;
+  const pendingAmount = Math.max(total - cobrado, 0);
+  const paymentStatus = pendingAmount <= 0 ? "PAID" : cobrado > 0 ? "PARTIAL" : "PENDING";
+  const comisionViva = venta.commissionStatus === "EN_PROCESO" || venta.commissionStatus === "A_PAGAR";
+  await prisma.sale.update({
+    where: { id: venta.id },
+    data: {
+      pendingAmount,
+      paymentStatus,
+      ...(comisionViva
+        ? { commissionStatus: estaCobrada(paymentStatus, pendingAmount) ? "A_PAGAR" : "EN_PROCESO" }
+        : {}),
+    },
+  });
+}
+
+router.get("/:id/payments", async (req: AuthRequest, res: Response): Promise<void> => {
   const payments = await prisma.payment.findMany({ where: { fichaId: req.params.id }, orderBy: { date: "asc" } });
   res.json(payments);
 });
 
-router.post("/:id/payments", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:id/payments", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = z.object({
     amount: z.number().positive(),
     date: z.string().optional(),
@@ -105,7 +133,7 @@ router.post("/:id/payments", authMiddleware, async (req: AuthRequest, res: Respo
   res.status(201).json(payment);
 });
 
-router.delete("/:id/payments/:paymentId", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id/payments/:paymentId", async (req: AuthRequest, res: Response): Promise<void> => {
   await prisma.payment.delete({ where: { id: req.params.paymentId } });
   await recalcDeposit(req.params.id);
   res.json({ ok: true });
@@ -129,7 +157,7 @@ async function resolveClientId(data: { clientId?: string | null; clientName: str
   return creado.id;
 }
 
-router.post("/", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = fichaSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const fichaNumber = await generateFichaNumber();
@@ -164,12 +192,13 @@ async function syncSaleForFicha(fichaId: string): Promise<void> {
         createdAt: ficha.deliveredAt ?? new Date(),
       },
     });
-  } else if (!delivered && existing) {
+  } else if (!delivered && existing && existing.saleNumber.startsWith("PED-")) {
+    // sólo se borra la venta que creó la entrega; una venta cargada por un vendedor queda
     await prisma.sale.delete({ where: { id: existing.id } });
   }
 }
 
-router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = fichaSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const ficha = await prisma.fichaPedido.update({
@@ -177,17 +206,23 @@ router.put("/:id", authMiddleware, async (req: AuthRequest, res: Response): Prom
     data: toData(parsed.data as z.infer<typeof fichaSchema>) as never,
   });
   await syncSaleForFicha(ficha.id);
+  await syncCobroDeVenta(ficha.id, Number(ficha.total), Number(ficha.deposit));
   res.json(ficha);
 });
 
-router.delete("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
+  // si el pedido se cae, la comisión de esa venta también (la ya pagada se descuenta a mano)
+  await prisma.sale.updateMany({
+    where: { fichaId: req.params.id, commissionStatus: { in: ["EN_PROCESO", "A_PAGAR"] } },
+    data: { commissionStatus: "ANULADA" },
+  });
   await prisma.sale.updateMany({ where: { fichaId: req.params.id }, data: { deletedAt: new Date() } });
   await prisma.fichaPedido.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
 });
 
 // PDF (token por query para abrir en pestaña nueva)
-router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id/pdf", async (req: AuthRequest, res: Response): Promise<void> => {
   const ficha = await prisma.fichaPedido.findUnique({ where: { id: req.params.id } });
   if (!ficha) { res.status(404).json({ error: "Ficha no encontrada" }); return; }
   generateFichaPDF({

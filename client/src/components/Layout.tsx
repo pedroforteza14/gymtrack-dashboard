@@ -34,6 +34,7 @@ const ownerNav = [
 // La vendedora sólo ve lo que necesita para vender: nada de costos ni plata del negocio
 const sellerNav = [
   { to: "/sales", icon: ShoppingCart, label: "Mis ventas" },
+  { to: "/quotes", icon: FileText, label: "Mis presupuestos" },
   { to: "/comisiones", icon: Coins, label: "Mis comisiones" },
   { to: "/clients", icon: Users, label: "Clientes" },
   { to: "/products", icon: Package, label: "Catálogo" },

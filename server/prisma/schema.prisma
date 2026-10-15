@@ -23,6 +23,7 @@ model User {
   // % propio del vendedor; si es null se usa el global de Setting
   commissionRate Decimal?    @db.Decimal(5, 2)
   salesMade      Sale[]      @relation("VentasDelVendedor")
+  quotesMade     Quote[]     @relation("PresupuestosDelVendedor")
   adAccounts     AdAccount[]
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -185,6 +186,14 @@ model Quote {
   // Formas de pago que se muestran en el PDF
   cashDiscount Decimal     @default(15) @db.Decimal(5, 2) // % OFF en efectivo/transferencia
   installments Int         @default(6) // cuotas sin interés
+  // quién lo armó (null = el dueño)
+  sellerId     String?
+  seller       User?       @relation("PresupuestosDelVendedor", fields: [sellerId], references: [id])
+  // seguimiento
+  sentAt       DateTime?
+  lostReason   String?
+  // la venta que salió de este presupuesto
+  saleId       String?     @unique
   deletedAt    DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -222,7 +231,9 @@ enum StockMovementType {
 
 enum QuoteStatus {
   DRAFT
+  PENDING_APPROVAL // descuento por encima del tope: lo tiene que aprobar el dueño
   SENT
+  NEGOTIATING
   ACCEPTED
   REJECTED
   EXPIRED

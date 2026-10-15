@@ -3,14 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Coins, MessageCircle, CheckCircle2, Phone, Plus, X, Trash2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
-import { currency, dateShort } from "../lib/format";
+import { currency, dateShort, waLink } from "../lib/format";
 import CountUp from "../components/CountUp";
 import { Skeleton } from "../components/Skeleton";
 
 interface Payment { id: string; amount: number; date: string; method?: string; notes?: string; }
 interface Sale {
   id: string; saleNumber: string; createdAt: string;
-  totalRevenue: number; pendingAmount?: number; paymentStatus: string;
+  totalRevenue: number; pendingAmount?: number; paymentStatus: string; fichaId?: string | null;
   client?: { id: string; name: string } | null;
 }
 interface Ficha {
@@ -32,15 +32,6 @@ function statusLabel(f: Ficha): string {
   return "Pendiente";
 }
 
-// Arma un link de WhatsApp (agrega 54 de Argentina si falta)
-function waLink(phone: string | undefined, message: string): string | null {
-  if (!phone) return null;
-  let digits = phone.replace(/\D/g, "");
-  if (!digits) return null;
-  if (!digits.startsWith("54")) digits = "54" + digits;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
-}
-
 export default function Cobros() {
   const qc = useQueryClient();
   const [payFicha, setPayFicha] = useState<(Ficha & { saldo: number }) | null>(null);
@@ -59,7 +50,8 @@ export default function Cobros() {
     queryFn: () => api.get("/sales?limit=200").then((r) => r.data),
   });
   const ventasPendientes = (salesData?.sales ?? [])
-    .filter((v) => v.paymentStatus !== "PAID" && Number(v.pendingAmount ?? 0) > 0)
+    // las ventas con ficha se cobran desde la ficha: no las mostramos dos veces
+    .filter((v) => !v.fichaId && v.paymentStatus !== "PAID" && Number(v.pendingAmount ?? 0) > 0)
     .sort((a, b) => Number(b.pendingAmount) - Number(a.pendingAmount));
 
   const refresh = () => {
