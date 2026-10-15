@@ -5,24 +5,31 @@ import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { getRole } from "../lib/auth";
 import { currency, dateShort, waLink } from "../lib/format";
+import { SelectorProducto, Miniatura } from "../components/SelectorProducto";
+import type { ProductoCatalogo } from "../components/SelectorProducto";
 import {
   FileText, Plus, Search, X, Trash2, Download, ChevronDown, ChevronUp,
   CheckCircle, Clock, Send, XCircle, AlertCircle, ClipboardList,
-  ShieldAlert, MessageCircle, Handshake, Trophy, Settings2,
+  ShieldAlert, MessageCircle, Handshake, Trophy, Settings2, Pencil,
 } from "lucide-react";
 
-interface Product { id: string; name: string; sku: string; sellPrice: number; }
+type Product = ProductoCatalogo;
 interface Client { id: string; name: string; }
 interface QuoteItem { productId: string; quantity: number; unitPrice: number; notes?: string; product?: { name: string; sku: string }; subtotal?: number; }
 interface Quote {
   id: string; quoteNumber: string; status: string; totalAmount: number;
   createdAt: string; validDays: number; notes?: string; cashDiscount?: number; installments?: number;
   sentAt?: string | null; lostReason?: string | null; saleId?: string | null;
+  clientId?: string | null; updatedAt: string;
   client?: { name: string; phone?: string } | null;
   seller?: { id: string; name: string } | null;
   items: QuoteItem[];
 }
 interface QuoteConfig { maxDiscount: number; cashDiscountStd: number; }
+interface ItemEditor { uid: string; productId: string; quantity: number; unitPrice: number; notes?: string }
+
+let ultimoUid = 0;
+const nuevoUid = () => String(++ultimoUid);
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   DRAFT:            { label: "Borrador",             color: "text-gray-400 bg-gray-800",         icon: Clock },
@@ -63,7 +70,9 @@ export default function Quotes() {
   const [validDays, setValidDays] = useState(15);
   const [cashDiscount, setCashDiscount] = useState(15);
   const [installments, setInstallments] = useState(6);
-  const [items, setItems] = useState<{ productId: string; quantity: number; unitPrice: number; notes?: string }[]>([]);
+  const [items, setItems] = useState<ItemEditor[]>([]);
+  // null = presupuesto nuevo; si no, el que se está editando
+  const [editando, setEditando] = useState<Quote | null>(null);
 
   const { data: quotes = [], isLoading } = useQuery<Quote[]>({
     queryKey: ["quotes"],
@@ -85,15 +94,22 @@ export default function Quotes() {
     queryFn: () => api.get("/quotes/config").then((r) => r.data),
   });
 
-  const createMut = useMutation({
-    mutationFn: () => api.post("/quotes", { clientId: clientId || undefined, items, notes, validDays, cashDiscount, installments }).then((r) => r.data),
+  const guardarMut = useMutation({
+    mutationFn: () => {
+      const body = {
+        clientId: clientId || undefined, notes, validDays, cashDiscount, installments,
+        items: items.map(({ uid: _uid, ...i }) => i),
+      };
+      return (editando ? api.put(`/quotes/${editando.id}`, body) : api.post("/quotes", body)).then((r) => r.data);
+    },
     onSuccess: (q: Quote) => {
       qc.invalidateQueries({ queryKey: ["quotes"] });
-      if (q.status === "PENDING_APPROVAL") toast("Presupuesto creado. Tiene más descuento del permitido: queda esperando aprobación.", { icon: "⏳", duration: 6000 });
-      else toast.success("Presupuesto creado");
+      const quedaPendiente = q.status === "PENDING_APPROVAL" && editando?.status !== "PENDING_APPROVAL";
+      if (quedaPendiente) toast("Guardado. Tiene más descuento del permitido: queda esperando aprobación.", { icon: "⏳", duration: 6000 });
+      else toast.success(editando ? "Cambios guardados" : "Presupuesto creado");
       resetForm();
     },
-    onError: (e: any) => toast.error(e.response?.data?.error ?? "No se pudo crear"),
+    onError: (e: any) => toast.error(e.response?.data?.error ?? "No se pudo guardar"),
   });
 
   const statusMut = useMutation({
@@ -104,7 +120,8 @@ export default function Quotes() {
   });
 
   const aprobarMut = useMutation({
-    mutationFn: (id: string) => api.post(`/quotes/${id}/aprobar`),
+    // version: lo que el dueño está viendo; si la vendedora lo cambió después, el servidor no lo aprueba
+    mutationFn: (q: Quote) => api.post(`/quotes/${q.id}/aprobar`, { version: q.updatedAt }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Descuento aprobado"); },
     onError: (e: any) => toast.error(e.response?.data?.error ?? "No se pudo aprobar"),
   });
@@ -144,9 +161,22 @@ export default function Quotes() {
     },
   });
 
-  const resetForm = () => { setShowCreate(false); setClientId(""); setNotes(""); setValidDays(15); setCashDiscount(15); setInstallments(6); setItems([]); };
+  const resetForm = () => { setShowCreate(false); setEditando(null); setClientId(""); setNotes(""); setValidDays(15); setCashDiscount(15); setInstallments(6); setItems([]); };
 
-  const addItem = () => setItems([...items, { productId: "", quantity: 1, unitPrice: 0, notes: "" }]);
+  const abrirEditor = (q: Quote) => {
+    setEditando(q);
+    setClientId(q.clientId ?? "");
+    setNotes(q.notes ?? "");
+    setValidDays(q.validDays);
+    setCashDiscount(Number(q.cashDiscount ?? 0));
+    setInstallments(q.installments ?? 1);
+    setItems(q.items.map((i) => ({
+      uid: nuevoUid(), productId: i.productId, quantity: i.quantity, unitPrice: Number(i.unitPrice), notes: i.notes ?? "",
+    })));
+    setShowCreate(true);
+  };
+
+  const addItem = () => setItems([...items, { uid: nuevoUid(), productId: "", quantity: 1, unitPrice: 0, notes: "" }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, value: string | number) => {
     const updated = [...items];
@@ -167,7 +197,12 @@ export default function Quotes() {
   };
   const tope = config?.maxDiscount ?? 10;
   const offEstandar = config?.cashDiscountStd ?? 15;
-  const pasaTope = !esDueño && (items.some((i) => descuentoDe(i) > tope + 0.01) || cashDiscount > offEstandar);
+  const superaTope = !esDueño && (items.some((i) => descuentoDe(i) > tope + 0.01) || cashDiscount > offEstandar);
+  // misma regla que el servidor: al editar, sólo vuelve a aprobación si cambió la plata
+  const firma = (xs: { productId: string; quantity: number; unitPrice: number }[]) =>
+    xs.map((i) => `${i.productId}:${i.quantity}:${Number(i.unitPrice)}`).sort().join("|");
+  const cambioPlata = !editando || firma(editando.items) !== firma(items) || Number(editando.cashDiscount ?? 0) !== cashDiscount;
+  const pasaTope = superaTope && (cambioPlata || editando?.status === "PENDING_APPROVAL");
 
   const total = items.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0);
 
@@ -319,7 +354,7 @@ export default function Quotes() {
                   {/* Actions */}
                   <div className="flex items-center flex-wrap justify-end gap-1 flex-shrink-0">
                     {esDueño && pendiente && (
-                      <button onClick={() => aprobarMut.mutate(q.id)} disabled={aprobarMut.isPending}
+                      <button onClick={() => aprobarMut.mutate(q)} disabled={aprobarMut.isPending}
                         title="Aprobar el descuento"
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-300 hover:bg-orange-200 text-gray-950 rounded-lg text-xs font-semibold transition-colors">
                         <ShieldAlert size={13} /> Aprobar
@@ -344,6 +379,12 @@ export default function Quotes() {
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-colors">
                         <MessageCircle size={13} /> <span className="hidden sm:inline">WhatsApp</span>
                       </a>
+                    )}
+                    {!cerrado && (
+                      <button onClick={() => abrirEditor(q)} title="Editar presupuesto"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-colors">
+                        <Pencil size={13} /> <span className="hidden sm:inline">Editar</span>
+                      </button>
                     )}
                     <button onClick={() => downloadPDF(q.id)} disabled={!esDueño && pendiente}
                       title={!esDueño && pendiente ? "Se habilita cuando el dueño apruebe el descuento" : "Descargar PDF"}
@@ -392,8 +433,13 @@ export default function Quotes() {
                         {q.items.map((item, i) => (
                           <tr key={i}>
                             <td className="py-1.5 text-gray-300">
-                              {item.product?.name ?? item.productId}
-                              {item.notes && <p className="text-xs text-gray-500 italic">{item.notes}</p>}
+                              <div className="flex items-center gap-3">
+                                <Miniatura producto={products.find((p) => p.id === item.productId)} size={36} />
+                                <div>
+                                  {item.product?.name ?? item.productId}
+                                  {item.notes && <p className="text-xs text-gray-500 italic">{item.notes}</p>}
+                                </div>
+                              </div>
                             </td>
                             <td className="py-1.5 text-right text-gray-400">{item.quantity}</td>
                             <td className="py-1.5 text-right text-gray-400">{currency(Number(item.unitPrice))}</td>
@@ -435,7 +481,7 @@ export default function Quotes() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-              <h2 className="font-semibold text-white">Nuevo presupuesto</h2>
+              <h2 className="font-semibold text-white">{editando ? `Editar ${editando.quoteNumber}` : "Nuevo presupuesto"}</h2>
               <button onClick={resetForm} className="text-gray-500 hover:text-gray-300"><X size={18} /></button>
             </div>
 
@@ -518,34 +564,33 @@ export default function Quotes() {
                   {items.map((item, i) => {
                     const desc = descuentoDe(item);
                     return (
-                      <div key={i} className="bg-gray-800/30 rounded-lg p-2 space-y-2">
-                        <div className="grid grid-cols-12 gap-2 items-center">
-                          <div className="col-span-12 sm:col-span-5">
-                            <select value={item.productId}
-                              onChange={(e) => updateItem(i, "productId", e.target.value)}
-                              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400">
-                              <option value="">Seleccionar...</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                              ))}
-                            </select>
+                      <div key={item.uid} className="bg-gray-800/30 rounded-lg p-2 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <SelectorProducto productos={products} value={item.productId}
+                              onChange={(id) => updateItem(i, "productId", id)} />
                           </div>
-                          <div className="col-span-3 sm:col-span-2">
+                          <button onClick={() => removeItem(i)} title="Quitar producto" aria-label="Quitar producto"
+                            className="text-gray-600 hover:text-red-400 transition-colors p-2">
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          <label className="col-span-4 sm:col-span-3">
+                            <span className="text-[10px] text-gray-500 block mb-0.5">Cantidad</span>
                             <input type="number" value={item.quantity} min={1}
                               onChange={(e) => updateItem(i, "quantity", Number(e.target.value))}
-                              placeholder="Cant."
                               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
-                          </div>
-                          <div className="col-span-8 sm:col-span-4">
+                          </label>
+                          <label className="col-span-8 sm:col-span-5">
+                            <span className="text-[10px] text-gray-500 block mb-0.5">Precio unitario</span>
                             <input type="number" value={item.unitPrice}
                               onChange={(e) => updateItem(i, "unitPrice", Number(e.target.value))}
-                              placeholder="Precio"
                               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-400" />
-                          </div>
-                          <div className="col-span-1 flex justify-center">
-                            <button onClick={() => removeItem(i)} className="text-gray-600 hover:text-red-400 transition-colors">
-                              <X size={14} />
-                            </button>
+                          </label>
+                          <div className="col-span-12 sm:col-span-4 sm:text-right">
+                            <span className="text-[10px] text-gray-500 block mb-0.5">Subtotal</span>
+                            <span className="text-sm text-white font-medium">{currency(item.quantity * item.unitPrice)}</span>
                           </div>
                         </div>
                         {desc > 0.01 && (
@@ -595,10 +640,12 @@ export default function Quotes() {
               )}
               <div className="flex gap-3">
                 <button onClick={resetForm} className="flex-1 py-2 border border-gray-700 text-gray-400 hover:text-white rounded-lg text-sm transition-colors">Cancelar</button>
-                <button onClick={() => createMut.mutate()}
-                  disabled={items.length === 0 || items.some((i) => !i.productId) || createMut.isPending}
+                <button onClick={() => guardarMut.mutate()}
+                  disabled={items.length === 0 || items.some((i) => !i.productId || i.quantity < 1 || i.unitPrice <= 0) || guardarMut.isPending}
                   className="flex-1 py-2 bg-white hover:bg-gray-200 disabled:opacity-50 text-gray-950 rounded-lg text-sm font-medium transition-colors">
-                  {createMut.isPending ? "Creando..." : pasaTope ? "Crear y pedir aprobación" : "Crear presupuesto"}
+                  {guardarMut.isPending ? "Guardando..."
+                    : editando ? (pasaTope ? "Guardar y pedir aprobación" : "Guardar cambios")
+                    : pasaTope ? "Crear y pedir aprobación" : "Crear presupuesto"}
                 </button>
               </div>
             </div>

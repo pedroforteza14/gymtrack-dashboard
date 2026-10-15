@@ -7,6 +7,7 @@ import { generateQuotePDF } from "../lib/pdf";
 import { avisar, CANAL_CON_COMISION } from "../lib/comisiones";
 import { crearVenta, avisarVentaDeVendedor, ErrorDeVenta } from "../lib/ventas";
 import { generateFichaNumber } from "./fichas";
+import { fotosParaPdf } from "../lib/fotos";
 
 const router = Router();
 router.use(authMiddleware);
@@ -69,6 +70,42 @@ const conDetalle = {
   items: { include: { product: { select: { name: true, sku: true } } } },
 } as const;
 
+type ItemPedido = z.infer<typeof quoteItemSchema>;
+
+function armarItems(items: ItemPedido[]) {
+  let totalAmount = 0;
+  const quoteItemsData = items.map((item) => {
+    const subtotal = item.unitPrice * item.quantity;
+    totalAmount += subtotal;
+    return {
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      subtotal,
+      notes: item.notes || null,
+    };
+  });
+  return { quoteItemsData, totalAmount };
+}
+
+/** Todos los productos tienen que existir en el catálogo. */
+async function productosValidos(items: ItemPedido[]): Promise<boolean> {
+  const ids = [...new Set(items.map((i) => i.productId))];
+  return (await prisma.product.count({ where: { id: { in: ids } } })) === ids.length;
+}
+
+async function avisarAprobacion(req: AuthRequest, quote: { quoteNumber: string; client: { name: string } | null }, total: number) {
+  await avisar({
+    type: "PRESUPUESTO",
+    title: `${req.user?.name ?? "Un vendedor"} pide aprobar un descuento`,
+    body: `${quote.quoteNumber}${quote.client ? ` para ${quote.client.name}` : ""} por ` +
+          `$${total.toLocaleString("es-AR")}: tiene más descuento del permitido.`,
+    link: "/quotes",
+  });
+}
+
+class CambioConcurrente extends Error {}
+
 async function generateQuoteNumber(): Promise<string> {
   const count = await prisma.quote.count();
   return `PRE-${String(count + 1).padStart(5, "0")}`;
@@ -126,19 +163,8 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createQuoteSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { clientId, items, notes, validDays, cashDiscount, installments } = parsed.data;
-
-  let totalAmount = 0;
-  const quoteItemsData = items.map((item) => {
-    const subtotal = item.unitPrice * item.quantity;
-    totalAmount += subtotal;
-    return {
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      subtotal,
-      notes: item.notes || null,
-    };
-  });
+  if (!(await productosValidos(items))) { res.status(400).json({ error: "Alguno de los productos no existe" }); return; }
+  const { quoteItemsData, totalAmount } = armarItems(items);
 
   const vendedor = esVendedor(req);
   const aprobar = vendedor && (await necesitaAprobacion(items, cashDiscount));
@@ -160,16 +186,68 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
     include: conDetalle,
   });
 
-  if (aprobar) {
-    await avisar({
-      type: "PRESUPUESTO",
-      title: `${req.user?.name ?? "Un vendedor"} pide aprobar un descuento`,
-      body: `${quote.quoteNumber}${quote.client ? ` para ${quote.client.name}` : ""} por ` +
-            `$${totalAmount.toLocaleString("es-AR")}: tiene más descuento del permitido.`,
-      link: "/quotes",
-    });
-  }
+  if (aprobar) await avisarAprobacion(req, quote, totalAmount);
   res.status(201).json(quote);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   EDICIÓN COMPLETA (cliente, productos, precios, condiciones)
+
+   · Un presupuesto ganado no se edita: ya es una venta.
+   · Si la vendedora cambia la plata (productos, cantidades, precios
+     o % OFF) y queda por encima del tope, vuelve a aprobación; si
+     baja el descuento dentro del tope, sale de aprobación sola.
+     Cambiar sólo el cliente, la validez o las notas no la pide de nuevo.
+   · Se guarda sólo si nadie lo cambió desde que se leyó.
+   ═══════════════════════════════════════════════════════════ */
+router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = createQuoteSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { clientId, items, notes, validDays, cashDiscount, installments } = parsed.data;
+
+  const quote = await buscarVisible(req, req.params.id);
+  if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
+  if (cerrado(quote)) { res.status(409).json({ error: "Este presupuesto ya se convirtió en venta: no se puede editar" }); return; }
+  if (!(await productosValidos(items))) { res.status(400).json({ error: "Alguno de los productos no existe" }); return; }
+
+  const { quoteItemsData, totalAmount } = armarItems(items);
+
+  const firma = (xs: { productId: string; quantity: number; unitPrice: unknown }[]) =>
+    xs.map((i) => `${i.productId}:${i.quantity}:${Number(i.unitPrice)}`).sort().join("|");
+  const cambioPlata = firma(quote.items) !== firma(items) || Number(quote.cashDiscount) !== cashDiscount;
+
+  let status = quote.status;
+  if (esVendedor(req)) {
+    const pasaTope = await necesitaAprobacion(items, cashDiscount);
+    if (pasaTope && (cambioPlata || quote.status === "PENDING_APPROVAL")) status = "PENDING_APPROVAL";
+    else if (!pasaTope && quote.status === "PENDING_APPROVAL") status = "DRAFT";
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const { count } = await tx.quote.updateMany({
+        where: { id: quote.id, saleId: null, status: quote.status, updatedAt: quote.updatedAt },
+        data: {
+          clientId: clientId || null,
+          notes: notes || null,
+          validDays, cashDiscount, installments, totalAmount, status,
+          updatedAt: new Date(), // explícito: es la "versión" que usa la aprobación
+        },
+      });
+      if (count === 0) throw new CambioConcurrente();
+      await tx.quoteItem.deleteMany({ where: { quoteId: quote.id } });
+      await tx.quoteItem.createMany({ data: quoteItemsData.map((i) => ({ ...i, quoteId: quote.id })) });
+    });
+  } catch (e) {
+    if (e instanceof CambioConcurrente) {
+      res.status(409).json({ error: "El presupuesto cambió recién. Recargá la página" }); return;
+    }
+    throw e;
+  }
+
+  const actualizado = await buscarVisible(req, quote.id);
+  if (status === "PENDING_APPROVAL" && cambioPlata && actualizado) await avisarAprobacion(req, actualizado, totalAmount);
+  res.json(actualizado);
 });
 
 const ESTADOS_DEL_VENDEDOR = ["DRAFT", "SENT", "NEGOTIATING", "REJECTED", "EXPIRED"] as const;
@@ -218,11 +296,18 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
 
 // El dueño aprueba un presupuesto con más descuento del permitido
 router.post("/:id/aprobar", soloDueño, async (req: AuthRequest, res: Response): Promise<void> => {
+  // version = fecha de última edición que vio el dueño: si la vendedora lo cambió después, no se aprueba a ciegas
+  const version = typeof req.body?.version === "string" ? new Date(req.body.version) : null;
   const { count } = await prisma.quote.updateMany({
-    where: { id: req.params.id, deletedAt: null, status: "PENDING_APPROVAL" },
+    where: {
+      id: req.params.id, deletedAt: null, status: "PENDING_APPROVAL",
+      ...(version && !isNaN(version.getTime()) ? { updatedAt: version } : {}),
+    },
     data: { status: "DRAFT" },
   });
-  if (count === 0) { res.status(400).json({ error: "No está esperando aprobación" }); return; }
+  if (count === 0) {
+    res.status(409).json({ error: "El presupuesto cambió o ya no espera aprobación. Recargá la página" }); return;
+  }
   res.json(await prisma.quote.findUnique({ where: { id: req.params.id } }));
 });
 
@@ -390,6 +475,7 @@ router.get("/:id/pdf", async (req: AuthRequest, res: Response): Promise<void> =>
     res.status(403).json({ error: "Este presupuesto está esperando la aprobación del dueño" }); return;
   }
 
+  const fotos = await fotosParaPdf(quote.items.map((i) => i.productId));
   const pdfData = {
     quoteNumber: quote.quoteNumber,
     createdAt: quote.createdAt,
@@ -407,6 +493,7 @@ router.get("/:id/pdf", async (req: AuthRequest, res: Response): Promise<void> =>
       unitPrice: Number(i.unitPrice),
       subtotal: Number(i.subtotal),
       notes: i.notes,
+      foto: fotos.get(i.productId) ?? null,
     })),
   };
 

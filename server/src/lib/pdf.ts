@@ -11,6 +11,7 @@ interface QuoteItem {
   unitPrice: number;
   subtotal: number;
   notes?: string | null;
+  foto?: Buffer | null; // miniatura JPG del producto (ver lib/fotos.ts)
 }
 
 interface QuoteData {
@@ -47,7 +48,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function generateQuotePDF(quote: QuoteData, res: Response): void {
-  const doc = new PDFDocument({ margin: 44, size: "A4" });
+  // bufferPages: el pie se dibuja al final en todas las páginas
+  const doc = new PDFDocument({ margin: 44, size: "A4", bufferPages: true });
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="presupuesto-${quote.quoteNumber}.pdf"`);
@@ -56,6 +58,8 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
   const L = 44;
   const R = doc.page.width - 44;
   const W = R - L;
+  // lo que queda por debajo es del pie de página
+  const LIMITE = doc.page.height - 84;
 
   // ── Header (banda negra con logo real) ───────────────────
   doc.rect(0, 0, doc.page.width, 104).fill(INK);
@@ -109,42 +113,71 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
   }
 
   // ── Tabla de productos ───────────────────────────────────
+  // Si al menos un producto tiene foto, la tabla suma una columna con la miniatura
+  const conFotos = quote.items.some((i) => i.foto);
+  const FOTO = 48;
   const cQty = L + 8;
-  const cName = L + 55;
+  const cFoto = L + 50;
+  const cName = conFotos ? cFoto + FOTO + 12 : L + 55;
   const cUnit = R - 200;
   const cSub = R - 100;
+  const nameW = cUnit - cName - 10;
 
-  doc.rect(L, y, W, 26).fill(INK);
-  doc.fontSize(8).fillColor("#ffffff").font("Helvetica-Bold")
-    .text("CANT.", cQty, y + 9)
-    .text("PRODUCTO", cName, y + 9)
-    .text("P. UNITARIO", cUnit, y + 9, { width: 90, align: "right" })
-    .text("SUBTOTAL", cSub, y + 9, { width: 90, align: "right" });
-  y += 26;
+  const encabezadoTabla = () => {
+    doc.rect(L, y, W, 26).fill(INK);
+    doc.fontSize(8).fillColor("#ffffff").font("Helvetica-Bold")
+      .text("CANT.", cQty, y + 9)
+      .text("PRODUCTO", conFotos ? cFoto : cName, y + 9)
+      .text("P. UNITARIO", cUnit, y + 9, { width: 90, align: "right" })
+      .text("SUBTOTAL", cSub, y + 9, { width: 90, align: "right" });
+    y += 26;
+  };
+  encabezadoTabla();
 
   quote.items.forEach((item, i) => {
-    const nameW = cUnit - cName - 10;
     const nota = item.notes?.trim();
     // La fila crece si el producto tiene una observación
     const notaH = nota ? doc.fontSize(8).font("Helvetica-Oblique").heightOfString(nota, { width: nameW }) + 3 : 0;
-    const rowH = 24 + notaH;
+    const textoH = 12 + notaH;
+    const rowH = Math.max(conFotos ? FOTO + 12 : 0, textoH + 12);
+
+    // fila que no entra: sigue en otra página, con el encabezado de la tabla
+    if (y + rowH > LIMITE) { doc.addPage(); y = 44; encabezadoTabla(); }
 
     if (i % 2 === 1) doc.rect(L, y, W, rowH).fill(ZEBRA);
-    doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold").text(String(item.quantity), cQty, y + 7, { width: 40 });
+    const ty = y + (rowH - textoH) / 2; // texto centrado en la fila
+
+    if (conFotos) {
+      const fy = y + (rowH - FOTO) / 2;
+      let puesta = false;
+      if (item.foto) {
+        try {
+          doc.image(item.foto, cFoto, fy, { fit: [FOTO, FOTO], align: "center", valign: "center" });
+          puesta = true;
+        } catch { /* foto ilegible: queda el recuadro vacío */ }
+      }
+      if (!puesta) doc.lineWidth(0.8).strokeColor(LINE).roundedRect(cFoto, fy, FOTO, FOTO, 4).stroke();
+    }
+
+    doc.fontSize(9.5).fillColor(INK).font("Helvetica-Bold").text(String(item.quantity), cQty, ty, { width: 40 });
     doc.fontSize(9.5).fillColor(SOFT).font("Helvetica")
-      .text(item.name, cName, y + 7, { width: nameW, ellipsis: true });
+      .text(item.name, cName, ty, { width: nameW, ellipsis: true, lineBreak: false });
     if (nota) {
       doc.fontSize(8).fillColor(MUTED).font("Helvetica-Oblique")
-        .text(nota, cName, y + 19, { width: nameW });
+        .text(nota, cName, ty + 12, { width: nameW });
     }
-    doc.fontSize(9.5).fillColor(SOFT).font("Helvetica").text(formatARS(item.unitPrice), cUnit, y + 7, { width: 90, align: "right" });
-    doc.fillColor(INK).font("Helvetica-Bold").text(formatARS(item.subtotal), cSub, y + 7, { width: 90, align: "right" });
+    doc.fontSize(9.5).fillColor(SOFT).font("Helvetica").text(formatARS(item.unitPrice), cUnit, ty, { width: 90, align: "right" });
+    doc.fillColor(INK).font("Helvetica-Bold").text(formatARS(item.subtotal), cSub, ty, { width: 90, align: "right" });
     y += rowH;
   });
   doc.rect(L, y, W, 0.8).fill(LINE);
   y += 16;
 
+  // Antes de cada bloque: si no entra en lo que queda de la página, pasa a la siguiente
+  const asegurar = (alto: number) => { if (y + alto > LIMITE) { doc.addPage(); y = 44; } };
+
   // ── Total ────────────────────────────────────────────────
+  asegurar(42);
   const tw = 230, tx = R - tw;
   doc.rect(tx, y, tw, 42).fill(INK);
   doc.fontSize(10).fillColor("#a1a1aa").font("Helvetica-Bold").text("TOTAL", tx + 16, y + 15, { characterSpacing: 1 });
@@ -155,6 +188,8 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
   const desc = quote.cashDiscount ?? 0;
   const cuotas = quote.installments ?? 0;
   if (desc > 0 || cuotas > 1) {
+    const filas = (desc > 0 ? 1 : 0) + (cuotas > 1 ? (cuotas >= 6 ? 2 : 1) : 0);
+    asegurar(14 + filas * 36);
     doc.fontSize(8).fillColor(MUTED).font("Helvetica-Bold").text("FORMAS DE PAGO", L, y, { characterSpacing: 0.5 });
     y += 14;
 
@@ -202,21 +237,31 @@ export function generateQuotePDF(quote: QuoteData, res: Response): void {
 
   // ── Notas / modificaciones ───────────────────────────────
   if (quote.notes && quote.notes.trim()) {
+    const boxH = Math.max(38, doc.fontSize(9.5).font("Helvetica").heightOfString(quote.notes, { width: W - 24, lineGap: 2 }) + 18);
+    asegurar(14 + boxH);
     doc.fontSize(8).fillColor(MUTED).font("Helvetica-Bold").text("NOTAS / CONDICIONES", L, y, { characterSpacing: 0.5 });
     y += 14;
-    const boxH = Math.max(38, doc.heightOfString(quote.notes, { width: W - 24, lineGap: 2 }) + 18);
     doc.lineWidth(0.8).strokeColor(LINE).roundedRect(L, y, W, boxH, 6).stroke();
     doc.fontSize(9.5).fillColor(SOFT).font("Helvetica").text(quote.notes, L + 12, y + 10, { width: W - 24, lineGap: 2 });
     y += boxH;
   }
 
-  // ── Footer ───────────────────────────────────────────────
-  const fy = doc.page.height - 58;
-  doc.rect(L, fy, W, 0.8).fill(LINE);
-  doc.fontSize(8).fillColor(MUTED).font("Helvetica")
-    .text(`Presupuesto válido por ${quote.validDays} días desde su emisión. Precios en pesos argentinos (ARS), sujetos a modificación sin previo aviso.`, L, fy + 12, { width: W, align: "center" });
-  doc.fontSize(8.5).fillColor(INK).font("Helvetica-Bold")
-    .text("THE PROMISE MACHINE  ·  thepromisemachine.com.ar", L, fy + 32, { width: W, align: "center" });
+  // ── Footer (en todas las páginas) ────────────────────────
+  const paginas = doc.bufferedPageRange();
+  for (let n = paginas.start; n < paginas.start + paginas.count; n++) {
+    doc.switchToPage(n);
+    doc.page.margins.bottom = 0; // si no, escribir debajo del margen abre otra página
+    const fy = doc.page.height - 58;
+    doc.rect(L, fy, W, 0.8).fill(LINE);
+    doc.fontSize(8).fillColor(MUTED).font("Helvetica")
+      .text(`Presupuesto válido por ${quote.validDays} días desde su emisión. Precios en pesos argentinos (ARS), sujetos a modificación sin previo aviso.`, L, fy + 12, { width: W, align: "center" });
+    doc.fontSize(8.5).fillColor(INK).font("Helvetica-Bold")
+      .text("THE PROMISE MACHINE  ·  thepromisemachine.com.ar", L, fy + 32, { width: W, align: "center" });
+    if (paginas.count > 1) {
+      doc.fontSize(7.5).fillColor(MUTED).font("Helvetica")
+        .text(`${quote.quoteNumber} · página ${n - paginas.start + 1} de ${paginas.count}`, L, fy + 46, { width: W, align: "center" });
+    }
+  }
 
   doc.end();
 }
