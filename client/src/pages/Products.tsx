@@ -43,6 +43,7 @@ export default function Products() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [lineFilter, setLineFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [imgPreview, setImgPreview] = useState<string | null>(null); // data URL
@@ -127,11 +128,19 @@ export default function Products() {
   // planilla desactivados y con la familia como línea ("Bancos", "Racks"...), que no son filtros reales
   const activos = products.filter((p) => p.active);
   const lines = Array.from(new Set(activos.map((p) => p.line).filter(Boolean))) as string[];
+  // categorías del catálogo activo, con cuántos productos tiene cada una
+  const categorias = Array.from(
+    activos.reduce((m, p) => {
+      if (p.category) m.set(p.category.id, { ...p.category, n: (m.get(p.category.id)?.n ?? 0) + 1 });
+      return m;
+    }, new Map<string, { id: string; name: string; n: number }>()).values()
+  ).sort((a, b) => a.name.localeCompare(b.name, "es"));
 
   // sin distinguir acentos ni mayúsculas: "maquina" encuentra "Máquina", y cada palabra puede estar en cualquier campo
   const palabras = sinAcentos(search.trim()).split(/\s+/).filter(Boolean);
   const filtered = activos.filter((p) => {
     if (lineFilter && p.line !== lineFilter) return false;
+    if (categoryFilter && p.categoryId !== categoryFilter) return false;
     const texto = sinAcentos([p.name, p.sku, p.category?.name, p.supplier, p.line].filter(Boolean).join(" "));
     return palabras.every((w) => texto.includes(w));
   });
@@ -156,7 +165,7 @@ export default function Products() {
         </div>
       </div>
 
-      {/* Search + line filter */}
+      {/* Búsqueda + filtros por línea y por categoría (se combinan) */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -172,6 +181,17 @@ export default function Products() {
             <button onClick={() => setLineFilter("")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${!lineFilter ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"}`}>Todas</button>
             {lines.map((l) => (
               <button key={l} onClick={() => setLineFilter(l)} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${lineFilter === l ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"}`}>{l}</button>
+            ))}
+          </div>
+        )}
+        {categorias.length > 0 && (
+          <div className="flex flex-wrap gap-1 bg-gray-800/60 rounded-lg p-1 w-full" role="group" aria-label="Filtrar por categoría">
+            <button onClick={() => setCategoryFilter("")} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${!categoryFilter ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"}`}>Todas las categorías</button>
+            {categorias.map((c) => (
+              <button key={c.id} onClick={() => setCategoryFilter(categoryFilter === c.id ? "" : c.id)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${categoryFilter === c.id ? "bg-white text-gray-950" : "text-gray-400 hover:text-gray-200"}`}>
+                {c.name} <span className="opacity-60">{c.n}</span>
+              </button>
             ))}
           </div>
         )}
