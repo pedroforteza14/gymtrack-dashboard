@@ -197,9 +197,14 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
     }
   }
 
-  // condicional: si justo se está convirtiendo en venta, no lo pisa
+  // condicional: no pisa una conversión a venta ni (si es la vendedora) un pedido de aprobación
+  // que hayan entrado entre la lectura y la escritura
   const { count } = await prisma.quote.updateMany({
-    where: { id: quote.id, saleId: null, status: { not: "ACCEPTED" } },
+    where: {
+      id: quote.id,
+      saleId: null,
+      status: { notIn: esVendedor(req) ? ["ACCEPTED", "PENDING_APPROVAL"] : ["ACCEPTED"] },
+    },
     data: {
       status,
       lostReason: status === "REJECTED" ? lostReason || null : null,
@@ -207,17 +212,18 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
       ...(status === "SENT" && !quote.sentAt ? { sentAt: new Date() } : {}),
     },
   });
-  if (count === 0) { res.status(409).json({ error: "Este presupuesto ya se convirtió en venta" }); return; }
+  if (count === 0) { res.status(409).json({ error: "El presupuesto cambió recién. Recargá la página" }); return; }
   res.json(await prisma.quote.findUnique({ where: { id: quote.id } }));
 });
 
 // El dueño aprueba un presupuesto con más descuento del permitido
 router.post("/:id/aprobar", soloDueño, async (req: AuthRequest, res: Response): Promise<void> => {
-  const quote = await prisma.quote.findFirst({ where: { id: req.params.id, deletedAt: null } });
-  if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
-  if (quote.status !== "PENDING_APPROVAL") { res.status(400).json({ error: "No está esperando aprobación" }); return; }
-  const updated = await prisma.quote.update({ where: { id: quote.id }, data: { status: "DRAFT" } });
-  res.json(updated);
+  const { count } = await prisma.quote.updateMany({
+    where: { id: req.params.id, deletedAt: null, status: "PENDING_APPROVAL" },
+    data: { status: "DRAFT" },
+  });
+  if (count === 0) { res.status(400).json({ error: "No está esperando aprobación" }); return; }
+  res.json(await prisma.quote.findUnique({ where: { id: req.params.id } }));
 });
 
 // Editar notas / validez de un presupuesto existente
@@ -245,11 +251,12 @@ router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> 
     && parsed.data.cashDiscount > OFF_EFECTIVO_ESTANDAR
     && quote.status !== "PENDING_APPROVAL";
 
-  const updated = await prisma.quote.update({
-    where: { id: quote.id },
+  const { count } = await prisma.quote.updateMany({
+    where: { id: quote.id, status: quote.status, saleId: quote.saleId },
     data: { ...parsed.data, ...(reAprobar ? { status: "PENDING_APPROVAL" as const } : {}) },
   });
-  res.json(updated);
+  if (count === 0) { res.status(409).json({ error: "El presupuesto cambió recién. Recargá la página" }); return; }
+  res.json(await prisma.quote.findUnique({ where: { id: quote.id } }));
 });
 
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {

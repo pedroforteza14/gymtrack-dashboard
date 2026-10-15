@@ -119,6 +119,7 @@ export default function Quotes() {
     mutationFn: ({ id, notes }: { id: string; notes: string }) =>
       api.put(`/quotes/${id}/notes`, { notes }).then((r) => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Nota guardada"); },
+    onError: (e: any) => toast.error(e.response?.data?.error ?? "No se pudo guardar la nota"),
   });
 
   const navigate = useNavigate();
