@@ -82,6 +82,11 @@ function buscarVisible(req: AuthRequest, id: string) {
   });
 }
 
+/** Ganado o en plena conversión a venta: ya no se toca. */
+function cerrado(q: { status: string; saleId: string | null }) {
+  return q.status === "ACCEPTED" || !!q.saleId;
+}
+
 /* ═════════ AJUSTE DEL TOPE ═════════ */
 router.get("/config", async (_req: AuthRequest, res: Response): Promise<void> => {
   res.json({ maxDiscount: await topeDescuento(), cashDiscountStd: OFF_EFECTIVO_ESTANDAR });
@@ -181,7 +186,7 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
 
   const quote = await buscarVisible(req, req.params.id);
   if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
-  if (quote.saleId) { res.status(400).json({ error: "Este presupuesto ya se convirtió en venta" }); return; }
+  if (cerrado(quote)) { res.status(409).json({ error: "Este presupuesto ya se convirtió en venta" }); return; }
 
   if (esVendedor(req)) {
     if (quote.status === "PENDING_APPROVAL") {
@@ -192,8 +197,9 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
     }
   }
 
-  const updated = await prisma.quote.update({
-    where: { id: quote.id },
+  // condicional: si justo se está convirtiendo en venta, no lo pisa
+  const { count } = await prisma.quote.updateMany({
+    where: { id: quote.id, saleId: null, status: { not: "ACCEPTED" } },
     data: {
       status,
       lostReason: status === "REJECTED" ? lostReason || null : null,
@@ -201,7 +207,8 @@ router.put("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
       ...(status === "SENT" && !quote.sentAt ? { sentAt: new Date() } : {}),
     },
   });
-  res.json(updated);
+  if (count === 0) { res.status(409).json({ error: "Este presupuesto ya se convirtió en venta" }); return; }
+  res.json(await prisma.quote.findUnique({ where: { id: quote.id } }));
 });
 
 // El dueño aprueba un presupuesto con más descuento del permitido
@@ -228,7 +235,7 @@ router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> 
 
   // lo que el dueño aprueba es lo que ve: mientras espera aprobación no se cambia el descuento
   if (esVendedor(req) && parsed.data.cashDiscount !== undefined
-      && (quote.status === "PENDING_APPROVAL" || quote.saleId)) {
+      && (quote.status === "PENDING_APPROVAL" || cerrado(quote))) {
     res.status(403).json({ error: "No se puede cambiar el descuento de este presupuesto ahora" }); return;
   }
 
@@ -248,7 +255,7 @@ router.put("/:id/notes", async (req: AuthRequest, res: Response): Promise<void> 
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const quote = await buscarVisible(req, req.params.id);
   if (!quote) { res.status(404).json({ error: "Presupuesto no encontrado" }); return; }
-  if (esVendedor(req) && quote.saleId) {
+  if (esVendedor(req) && cerrado(quote)) {
     res.status(403).json({ error: "Este presupuesto ya se convirtió en venta" }); return;
   }
   await prisma.quote.update({ where: { id: quote.id }, data: { deletedAt: new Date() } });
@@ -304,7 +311,10 @@ router.post("/:id/venta", async (req: AuthRequest, res: Response): Promise<void>
   if (reservado.count === 0) {
     res.status(409).json({ error: "Este presupuesto ya se convirtió en venta" }); return;
   }
-  const liberar = () => prisma.quote.update({ where: { id: quote.id }, data: { status: quote.status } });
+  const liberar = () => prisma.quote.updateMany({
+    where: { id: quote.id, saleId: null, status: "ACCEPTED" },
+    data: { status: quote.status },
+  });
 
   let creada;
   try {
